@@ -2,6 +2,10 @@
 
 `usag` 是一個為 Claude Code 使用者設計的 macOS 工具，能將 5 小時 / 7 天用量顯示在右上角 menu bar 或終端機中，並支援開機自動啟動。
 
+<p align="center">
+  <img src="docs/popover.png" alt="usag popover 展開時的樣子" width="320">
+</p>
+
 ## 資料來源
 
 usag **不打 Anthropic API**、也不讀 Keychain，避免「自己每分鐘 ping 一次也算用量」的觀察者效應。
@@ -64,7 +68,10 @@ source .venv/bin/activate
 python3 main.py
 ```
 
-- **顯示格式**：`🐾 37%`
+- **顯示格式**：`🐾 37%`；若同時偵測到 Codex 用量則加上 `· 📜 10%` 之類後綴：
+
+  <img src="docs/menubar.png" alt="menu bar 上方顯示樣式" width="240">
+
 - **下拉選單**：可查看 5 小時與週用量細節、重置時間、目前速率與同步狀態。
 - **權限提醒**：首次啟動時，macOS 可能會詢問是否允許在背景執行。
 
