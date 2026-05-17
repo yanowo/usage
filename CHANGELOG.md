@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+### Changed
+- `pricing.py`: pricing cache moved from the package directory to `~/.claude/pricing_cache.json` so the read-only `.app` bundle can refresh the cache.
+- Applied `ruff format` across the project (formatting only; no logic changes).
+
+### Removed
+- `UsageRateTracker.sample()` dead code (was a no-op called from `main._apply_outcome`).
+
+### Build
+- `.gitignore` now excludes `*.egg-info/` and `.pytest_cache/`.
+
 ## 0.1.1 — 2026-05-17
 
 ### Added
