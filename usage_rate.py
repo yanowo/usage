@@ -19,9 +19,6 @@ class UsageRateTracker:
         self._cached_group: int | None = None
         self._cache_expires_at = 0.0
 
-    def sample(self, session_pct: float) -> None:
-        _ = session_pct
-
     def group(self) -> int:
         forced_group = self._forced_group()
         if forced_group is not None:

@@ -66,7 +66,6 @@ def parse_args() -> argparse.Namespace:
 async def poll_usage(
     client: ClaudeUsageClient,
     state: AppViewState,
-    tracker: UsageRateTracker,
     stop_event: asyncio.Event,
 ) -> None:
     while not stop_event.is_set():
@@ -78,15 +77,12 @@ async def poll_usage(
 
         state.poll_state = PollState.LOADING
         outcome = await client.fetch_once()
-        _apply_outcome(state, outcome, tracker)
+        _apply_outcome(state, outcome)
 
-
-def _apply_outcome(state: AppViewState, outcome: PollOutcome, tracker: UsageRateTracker) -> None:
+def _apply_outcome(state: AppViewState, outcome: PollOutcome) -> None:
     state.poll_state = outcome.state
     if outcome.snapshot is not None:
         state.snapshot = outcome.snapshot
-        if outcome.state == PollState.SUCCESS:
-            tracker.sample(outcome.snapshot.current_percent)
     if outcome.message:
         state.message = outcome.message
     if outcome.state == PollState.SUCCESS:
@@ -102,9 +98,9 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
 
     try:
         first_outcome = await client.fetch_once()
-        _apply_outcome(state, first_outcome, tracker)
+        _apply_outcome(state, first_outcome)
 
-        poll_task = asyncio.create_task(poll_usage(client, state, tracker, stop_event))
+        poll_task = asyncio.create_task(poll_usage(client, state, stop_event))
 
         with Live(
             render_screen(state, 0),
