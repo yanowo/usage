@@ -446,7 +446,7 @@ wheels = [
 [[package]]
 name = "usag"
 version = "0.1.1"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "pyobjc-framework-cocoa" },
     { name = "rich" },

@@ -9,6 +9,25 @@ dependencies = [
     "rich>=14.0.0,<15.0.0",
 ]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+    "main",
+    "menubar",
+    "tui",
+    "pricing",
+    "history_loader",
+    "usage_rate",
+    "usag_statusline",
+    "setup_hook",
+    "usage_client",
+    "codex_loader",
+    "clawd_sprite",
+]
+
 [dependency-groups]
 dev = [
     "ruff>=0.6",
