@@ -1,5 +1,7 @@
 # usag
 
+繁體中文 · [English](README.en.md)
+
 `usag` 是一個為 Claude Code 使用者設計的 macOS 工具，能將 5 小時 / 7 天用量顯示在右上角 menu bar 或終端機中，並支援開機自動啟動。
 
 <p align="center">
