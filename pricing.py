@@ -4,6 +4,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 import urllib.request
@@ -21,6 +22,16 @@ CACHE_PATH = Path(os.path.expanduser("~/.claude/pricing_cache.json"))
 CACHE_TTL_DAYS = 7
 FALLBACK_RETRY_SECONDS = 600
 USER_AGENT = "usage/0.2"
+PROVIDER_PREFIXES = (
+    "openai/",
+    "anthropic/",
+    "bedrock/",
+    "azure/",
+    "vertex_ai/",
+    "vertex/",
+    "google/",
+)
+DATE_SUFFIX_RE = re.compile(r"-(?:\d{8}|\d{4}-\d{2}-\d{2})$")
 
 PricingTable = dict[str, dict[str, float]]
 PricingSource = Literal["cache", "fetched", "fallback"]
@@ -161,13 +172,30 @@ def _resolve_model_key(model: str, pricing: PricingTable) -> str | None:
     if model in pricing:
         return model
 
-    model_lower = model.lower()
-    for key in pricing:
-        key_lower = key.lower()
-        if model_lower in key_lower or key_lower in model_lower:
-            return key
+    normalized = _normalize_model_name(model)
+    if normalized in pricing:
+        return normalized
 
+    prefix_matches = [
+        key
+        for key in pricing
+        if key.startswith(normalized)
+        and (len(key) == len(normalized) or key[len(normalized)] == "-")
+    ]
+    if prefix_matches:
+        return sorted(prefix_matches, key=lambda key: (len(key), key))[0]
+
+    logger.debug("pricing: no match for model=%s", model)
     return None
+
+
+def _normalize_model_name(model: str) -> str:
+    normalized = model.strip().lower()
+    for prefix in PROVIDER_PREFIXES:
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+            break
+    return DATE_SUFFIX_RE.sub("", normalized)
 
 
 def _fallback_pricing() -> PricingTable:

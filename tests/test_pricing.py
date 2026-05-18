@@ -81,16 +81,38 @@ def test_resolve_model_key_exact_match() -> None:
     assert pricing._resolve_model_key("model-a", {"model-a": {}}) == "model-a"
 
 
-def test_resolve_model_key_substring_match_both_directions() -> None:
+def test_resolve_model_key_strips_provider_prefix_before_exact_match() -> None:
     pricing_table: pricing.PricingTable = {
-        "claude-sonnet-4-6": {},
-        "claude-opus": {},
+        "gpt-5": {},
     }
 
-    assert pricing._resolve_model_key("sonnet-4", pricing_table) == "claude-sonnet-4-6"
-    assert (
-        pricing._resolve_model_key("anthropic/claude-opus-latest", pricing_table) == "claude-opus"
-    )
+    assert pricing._resolve_model_key("openai/gpt-5", pricing_table) == "gpt-5"
+
+
+def test_resolve_model_key_strips_date_suffix_before_exact_match() -> None:
+    pricing_table: pricing.PricingTable = {
+        "gpt-4o": {},
+    }
+
+    assert pricing._resolve_model_key("gpt-4o-2024-05-13", pricing_table) == "gpt-4o"
+    assert pricing._resolve_model_key("gpt-4o-20240513", pricing_table) == "gpt-4o"
+
+
+def test_resolve_model_key_uses_strict_prefix_match_deterministically() -> None:
+    pricing_table: pricing.PricingTable = {
+        "gpt-5-mini": {},
+        "gpt-5-pro": {},
+    }
+
+    assert pricing._resolve_model_key("openai/gpt-5", pricing_table) == "gpt-5-pro"
+
+
+def test_resolve_model_key_does_not_match_partial_token_prefix() -> None:
+    pricing_table: pricing.PricingTable = {
+        "gpt-4o-mini": {},
+    }
+
+    assert pricing._resolve_model_key("gpt-4", pricing_table) is None
 
 
 def test_resolve_model_key_not_found() -> None:
