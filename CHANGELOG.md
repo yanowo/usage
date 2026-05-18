@@ -4,6 +4,22 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## 0.2.1 — 2026-05-18
+
+### 修正
+- `scripts/install-hook.sh`：產生 statusLine command 時改用 `shlex.quote()` 包裹路徑，與 `setup_hook.py` 對齊，避免使用者 Python 路徑或 hook 路徑含空白時 hook 安裝失效。
+- `pricing.py`：`_pricing_cache` 改記錄 source（cache / fetched / fallback）與時間，fallback 結果改成 10 分鐘短 TTL，避免離線啟動後即使網路恢復成本估算也永久卡在舊 fallback。
+- `menubar.py` / `codex_loader.py`：silent except 改成 `USAGE_DEBUG=1` 時印 `logger.warning(exc_info=True)`，未設定時保持靜默；除錯時不會再看似「沒安裝 Codex」實際是解析失敗。
+
+### 文件
+- `README.md` / `README.en.md`：在價格表說明段補一句「首次啟動沒快取會同步抓一次，網路慢時可能等 ~10 秒」，避免新使用者以為當機。
+
+### 測試
+- 新增 `tests/test_main.py`（9 個）覆蓋 `parse_args` 與 `_apply_outcome` 行為。
+- 新增 `tests/test_menubar.py`（14 個）覆蓋純函式：`format_human_time`、`_format_percent`、`_bar_color`、`_quota_row`、`_missing_row`、`_today_title(mock=True)`、`_empty_state`、`_error_state`、`_popover_size`。
+- 新增 `tests/test_pricing.py` 4 個 case 覆蓋 fallback TTL、retry 後 fetched、fetched / cache 不重抓。
+- 全測試從 63 → 90 passed。
+
 ## 0.2.0 — 2026-05-18
 
 ### 破壞性變更
