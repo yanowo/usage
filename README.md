@@ -18,7 +18,7 @@
 
 ## 它怎麼拿到你的用量數字
 
-用量數字來自 Claude Code 跟 Codex 在你本機留下的檔案，不呼叫 Anthropic / OpenAI 的 API。唯一的例外：估算 Codex 成本時需要 token 單價表，如果本機沒有快取（`~/.claude/pricing_cache.json`），會嘗試從公開的 [LiteLLM 價格表](https://github.com/BerriAI/litellm) 下載一次並存起來，7 天後過期再抓。下載失敗的話會用內建的 fallback 價格，不影響用量百分比的顯示。
+用量數字來自 Claude Code 跟 Codex 在你本機留下的檔案，不呼叫 Anthropic / OpenAI 的 API。唯一的例外：估算 Codex 成本時需要 token 單價表，如果本機沒有快取（`~/.claude/pricing_cache.json`），會嘗試從公開的 [LiteLLM 價格表](https://github.com/BerriAI/litellm) 下載一次並存起來，7 天後過期再抓。下載失敗的話會用內建的 fallback 價格，不影響用量百分比的顯示。首次啟動若沒快取會同步抓一次，網路慢時可能要等 ~10 秒。
 
 ### Claude Code 用量
 
