@@ -4,6 +4,11 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## 0.3.3 — 2026-05-19
+
+### 新增
+- **Minimal 面板**：深色簡約風格，Linear / Raycast 設計語言。近黑底色（`#0A0A0C`）、圓角卡片、accent 色進度條（Claude 暖橘 / Codex 青色）。每張卡各有 Session（大字 26pt）與 Weekly（24pt）兩列，各自含標籤、百分比數字、2px 進度條、重置倒數；頁尾卡片以左標籤（muted）+ 右數值（bright）雙欄呈現速率、狀態、今日花費，列間加分隔線。三顆按鈕（立即更新 / 結束 / 切換面板）沿用 accent 漸層 + 半透明邊框設計。
+
 ## 0.3.2 — 2026-05-19
 
 ### 新增

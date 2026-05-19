@@ -4,9 +4,16 @@ from panels.base import Panel
 from panels.classic import ClassicPanel
 from panels.ecg import ECGPanel
 from panels.matrix import MatrixPanel
+from panels.minimal import MinimalPanel
 from panels.taiwan import TaiwanPanel
 
-PANELS: tuple[Panel, ...] = (ClassicPanel(), TaiwanPanel, MatrixPanel(), ECGPanel())
+PANELS: tuple[Panel, ...] = (
+    ClassicPanel(),
+    TaiwanPanel,
+    MatrixPanel(),
+    ECGPanel(),
+    MinimalPanel(),
+)
 
 
 def all_panels() -> tuple[Panel, ...]:
