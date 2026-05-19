@@ -152,12 +152,13 @@ python3 main.py
   1. Two cards for Claude Code and Codex, each with Session (5-hour) and Weekly (7-day) progress bars and a reset countdown.
   2. A footer card showing current rate, sync status, and today's token usage and cost estimate (Claude uses the actual `costUSD` from its log when available; Codex cost is estimated from token count × pricing table).
   3. Two buttons: "Refresh now" and "Quit".
-- **Switch panel** (v0.3.0+): a `⇄ Switch` button sits in the Claude Code card's top-right corner (the Taiwan panel embeds it in the top header bar instead) and opens a menu of available panel styles. Three are built in:
+- **Switch panel** (v0.3.0+): a `⇄ Switch` button sits in the Claude Code card's top-right corner (the Taiwan panel embeds it in the top header bar instead) and opens a menu of available panel styles. Six are built in:
   - **Default**: the original two-card + footer layout.
   - **Taiwan usage monitor**: a red-on-white themed variant with a top header bar containing the TAIWAN flag icon.
   - **Matrix / 駭客任務** (v0.3.1+): animated digital-rain panel with cascading katakana characters, Matrix-green palette, and terminal bracket–style buttons.
   - **ECG**: medical-monitor style with two live ECG waveform channels — LEAD A for Claude Code and LEAD B for Codex. Waveform amplitude scales with quota usage; higher burn rate produces more intense peaks.
   - **Minimal** (v0.3.3+): dark minimal panel inspired by Linear / Raycast. Near-black background, rounded cards, accent-coloured progress bars (Claude warm-orange / Codex cyan). Footer card presents rate, status, and today's cost as a two-column label + value layout.
+  - **手繪 / Sketch** (v0.3.4+): hand-drawn Excalidraw-style panel. Coral-pink background, off-white cards with thick black borders, corner pin decorations. Claude in deep orange-red, Codex in deep teal.
 
   <p align="center">
     <img src="docs/popover.png" alt="default panel" width="180">
@@ -165,6 +166,7 @@ python3 main.py
     <img src="docs/popover-matrix.png" alt="Matrix panel" width="180">
     <img src="docs/popover-ecg.png" alt="ECG panel" width="180">
     <img src="docs/popover-minimal.png" alt="Minimal panel" width="180">
+    <img src="docs/popover-sketch.png" alt="Sketch panel" width="180">
   </p>
 
   Your choice is persisted via `NSUserDefaults`, so the last selected panel survives restarts.

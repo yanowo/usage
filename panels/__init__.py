@@ -5,6 +5,7 @@ from panels.classic import ClassicPanel
 from panels.ecg import ECGPanel
 from panels.matrix import MatrixPanel
 from panels.minimal import MinimalPanel
+from panels.sketch import SketchPanel
 from panels.taiwan import TaiwanPanel
 
 PANELS: tuple[Panel, ...] = (
@@ -13,6 +14,7 @@ PANELS: tuple[Panel, ...] = (
     MatrixPanel(),
     ECGPanel(),
     MinimalPanel(),
+    SketchPanel(),
 )
 
 

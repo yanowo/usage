@@ -154,12 +154,13 @@ python3 main.py
   1. 上面兩張卡片分別是 Claude Code 跟 Codex，每張各有 Session（這 5 小時）跟 Weekly（這 7 天）兩條進度條，旁邊標重置倒數
   2. 最下面那張小卡是目前速率、同步狀態、今日 token 用量與成本估算（Claude 若 log 有提供實際金額則直接顯示；Codex 成本為依 token 數估算）
   3. 兩顆按鈕：「立即更新」、「結束」
-- **切換面板**（v0.3.0+）：在 Claude Code 卡片的右上角有一顆「⇄ 更換」按鈕（台灣面板則放在頂部標題列裡），點下去會跳出選單列出可選的面板樣式。目前內建三款：
+- **切換面板**（v0.3.0+）：在 Claude Code 卡片的右上角有一顆「⇄ 更換」按鈕（台灣面板則放在頂部標題列裡），點下去會跳出選單列出可選的面板樣式。目前內建六款：
   - **預設**：原本兩張卡 + 速率/狀態/今日 的英式風格
   - **台灣用量監控**：紅底白字、上方加一條含 TAIWAN 旗 icon 的標題列
   - **駭客任務**（v0.3.1+）：黑底綠字數位雨動畫，Matrix 風格終端機介面
   - **ECG 心電圖**：醫療監視器風格，LEAD A（Claude）與 LEAD B（Codex）各有一條即時 ECG 波形動畫，振幅跟著 quota 使用率變化，速率越高波形越激烈
   - **Minimal**（v0.3.3+）：深色簡約風格，Linear / Raycast 設計語言。純黑底色、圓角卡片、accent 色進度條（Claude 暖橘 / Codex 青色）；頁尾卡片以左標籤 + 右數值的雙欄結構呈現速率、狀態、今日花費
+  - **手繪**（v0.3.4+）：Excalidraw 手繪塗鴉風格。珊瑚粉底色、米白卡片、粗黑邊框、卡片四角畫釘裝飾；Claude 深橘紅、Codex 深青綠，視覺輕鬆活潑
 
   <p align="center">
     <img src="docs/popover.png" alt="預設面板" width="180">
@@ -167,6 +168,7 @@ python3 main.py
     <img src="docs/popover-matrix.png" alt="駭客任務面板" width="180">
     <img src="docs/popover-ecg.png" alt="ECG 心電圖面板" width="180">
     <img src="docs/popover-minimal.png" alt="Minimal 面板" width="180">
+    <img src="docs/popover-sketch.png" alt="手繪面板" width="180">
   </p>
 
   選擇會記進 `NSUserDefaults`（macOS 內建的偏好設定儲存區），下次開 app 會記得上次選的面板。
