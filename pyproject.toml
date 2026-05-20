@@ -26,6 +26,7 @@ py-modules = [
     "usage_statusline",
     "setup_hook",
     "usage_client",
+    "usage_desktop",
     "usage_state",
     "usage_web",
     "codex_loader",
@@ -40,7 +41,8 @@ dev = [
     "pytest-cov>=5",
 ]
 build = [
-    "py2app>=0.28",
+    "py2app>=0.28; platform_system == 'Darwin'",
+    "pyinstaller>=6.0; platform_system == 'Windows'",
 ]
 
 [tool.ruff]

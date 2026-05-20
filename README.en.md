@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](README.en.md)
 [![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
 
-`usage` shows your **Claude Code and Codex** usage locally. On macOS it can live in the menu bar; on Windows it runs as a local web UI so a browser or desktop widget can open a URL and show current 5-hour usage, 7-day usage, and today's token usage and cost estimate.
+`usage` shows your **Claude Code and Codex** usage locally. On macOS it can live in the menu bar; on Windows it can run as a small desktop window, or as a local web UI so a browser or desktop widget can open a URL and show current 5-hour usage, 7-day usage, and today's token usage and cost estimate.
 
 It **never calls the Anthropic / OpenAI API** and **never reads the Keychain**, so it avoids the observer effect of "pinging once a minute counts as usage."
 
@@ -64,7 +64,9 @@ If Codex isn't installed or the directory doesn't exist, that part of the UI hid
 | I want to… | How |
 |-----------|-----|
 | Use it on macOS with no setup | [Download the app](#download-the-app) |
-| Use it on Windows or a desktop widget URL | [Web mode](#web-mode-windows-default) |
+| Use it on Windows with no setup | [Download the Windows exe](#download-the-windows-exe) |
+| Use it on Windows as a small desktop window | [Desktop mode](#desktop-mode-windows-default) |
+| Use a desktop widget URL | [Web mode](#web-mode-url--desktop-widget) |
 | Run from source | [Set up the environment](#set-up-the-environment) |
 | Preview the UI without installing | [Preview mode](#preview-mode-no-install-required) |
 
@@ -87,6 +89,10 @@ If the button doesn't show, usage is already reading data (e.g. you previously i
 > ```bash
 > bash <(curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh)
 > ```
+
+## Download the Windows exe
+
+Go to the [GitHub Releases page](https://github.com/aqua5230/usage/releases/latest) and download `usage.exe`. Double-clicking it starts the Windows desktop widget. If SmartScreen warns about an unknown publisher, verify the file came from this project's Release page before choosing to keep or run it.
 
 ## Download
 
@@ -151,9 +157,37 @@ python3 main.py --unsetup
 
 ## Run modes
 
-### Web mode (Windows default)
+### Desktop mode (Windows default)
 
-Windows does not have the macOS menu bar API, so usage starts a local web server by default. Open the printed URL in a browser or point any desktop widget that can render a web URL at it.
+Windows does not have the macOS menu bar API, so usage starts a small always-on-top draggable window by default. The window can switch between `All / Claude / Codex` and refreshes usage on a timer.
+
+The desktop widget supports:
+
+- dragging the lower-right grip to resize the window
+- the `Alpha` slider for opacity
+- `Pinned / Pin` to toggle always-on-top
+- `Style` switching between `Classic / Taiwan / Matrix / ECG / Minimal / Sketch`, aligned with the macOS widget templates
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py
+```
+
+You can also request desktop mode explicitly:
+
+```powershell
+python main.py --desktop
+```
+
+To launch without keeping a PowerShell window open, create a Windows shortcut that uses `pythonw.exe`, for example:
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+```
+
+### Web mode (URL / desktop widget)
+
+If you want to embed usage in a desktop widget that renders a web URL, start web mode manually.
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
@@ -272,6 +306,9 @@ python3 main.py --mock
 # Web preview (Windows / browser / widget)
 python3 main.py --web --mock
 
+# Desktop preview (Windows mini window)
+python main.py --desktop --mock
+
 # TUI preview
 python3 main.py --tui --mock
 ```
@@ -279,7 +316,8 @@ python3 main.py --tui --mock
 ## Options
 
 - `--setup` / `--unsetup` — install or remove the Claude Code statusLine hook.
-- `--web` — start the cross-platform web UI (default on Windows).
+- `--desktop` — start the cross-platform desktop mini window (default on Windows).
+- `--web` — start the cross-platform web UI.
 - `--host HOST` — web server bind address, default `127.0.0.1`.
 - `--port PORT` — web server port, default `8765`.
 - `--tui` — force terminal TUI mode (no menu bar).
@@ -312,14 +350,15 @@ $env:USAGE_DEBUG="1"; python main.py --web
 The "Fix" column distinguishes three kinds of users — find yours first:
 
 - **.app users** — downloaded `usage.app.zip` from GitHub Releases, unzipped, dragged `usage.app` to `/Applications`, double-click to launch like any Mac app. No Terminal, no Python.
-- **Web / Windows users** — run `python main.py --web` from source, then open the URL in a browser or desktop widget.
+- **Desktop / Windows users** — run `python main.py` or `python main.py --desktop` from source to open a small desktop window.
+- **Web / widget users** — run `python main.py --web` from source, then open the URL in a browser or desktop widget.
 - **LaunchAgent users** — cloned the source and ran `./scripts/install-launchagent.sh` so macOS auto-starts usage on login.
 - **Source users** — cloned the source and run `python3 main.py` manually in Terminal each time.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
-| `python main.py` on Windows does not open a native window | Windows uses the local web server mode | Open the printed URL, or use `http://127.0.0.1:8765/?layout=compact` directly |
+| `python main.py` on Windows does not open a native window | Tkinter is unavailable, or the current environment cannot open a GUI | Use `python main.py --web`, or install Python with Tkinter support |
 | Desktop widget cannot open the URL | The usage web server is not running, or the port changed/is occupied | Run `python main.py --web` again and copy the printed URL. If you changed the port, update the widget URL too |
 | Accidentally hit "Quit", paw icon disappeared from the menu bar | "Quit" fully terminates the usage process; you have to relaunch it | **.app users**: press `Cmd+Space` for Spotlight, type `usage`, hit Enter; or double-click `usage.app` from `/Applications`. **LaunchAgent users**: run `launchctl start com.lollapalooza.usage` in Terminal. **Source users**: run `python3 main.py` in Terminal again |
 | Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |
@@ -338,3 +377,13 @@ If you want to launch usage by double-clicking instead of opening a terminal, bu
 The output is `dist/usage.app`. Double-click it or run `open dist/usage.app`.
 
 Each GitHub Release build (push a `v*` tag) automatically builds the app in CI and attaches `usage.app.zip` to the Release page.
+
+## Build a Windows exe
+
+On Windows, package a single-file exe with PyInstaller:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+```
+
+The output is `dist\usage.exe`. The `Windows exe` GitHub Actions workflow also builds it on `v*` tags or manual dispatch, uploads `usage.exe` as an artifact, and attaches it to the Release for tag builds.

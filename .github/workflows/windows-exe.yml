@@ -1,0 +1,81 @@
+name: Windows exe
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v0.3.4'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve ref and tag
+        id: ref
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.tag }}" -ne "") {
+            "ref=${{ inputs.tag }}" >> $env:GITHUB_OUTPUT
+            "tag=${{ inputs.tag }}" >> $env:GITHUB_OUTPUT
+          } else {
+            "ref=${{ github.ref }}" >> $env:GITHUB_OUTPUT
+            "tag=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          }
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv python install 3.13
+
+      - run: uv sync --frozen --group build
+
+      - name: Build exe
+        shell: pwsh
+        run: ./scripts/build_windows_exe.ps1
+
+      - name: Verify exe
+        shell: pwsh
+        run: |
+          if (!(Test-Path dist/usage.exe)) {
+            Get-ChildItem dist -Force
+            throw "Missing dist/usage.exe"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usage-windows-exe
+          path: dist/usage.exe
+
+      - name: Ensure release exists
+        if: startsWith(steps.ref.outputs.tag, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view "${{ steps.ref.outputs.tag }}" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create `
+              "${{ steps.ref.outputs.tag }}" `
+              --target "${{ github.sha }}" `
+              --title "${{ steps.ref.outputs.tag }}" `
+              --notes ""
+          }
+
+      - name: Upload to release
+        if: startsWith(steps.ref.outputs.tag, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release upload "${{ steps.ref.outputs.tag }}" dist/usage.exe --clobber

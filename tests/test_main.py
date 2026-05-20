@@ -30,6 +30,7 @@ def test_parse_args_defaults(monkeypatch: Any) -> None:
     assert args.interval == 60
     assert args.tui is False
     assert args.web is False
+    assert args.desktop is False
     assert args.host == "127.0.0.1"
     assert args.port == 8765
     assert args.setup is False
@@ -69,6 +70,12 @@ def test_parse_args_web_host_and_port(monkeypatch: Any) -> None:
     assert args.web is True
     assert args.host == "0.0.0.0"
     assert args.port == 9000
+
+
+def test_parse_args_desktop(monkeypatch: Any) -> None:
+    args = _parse_args(monkeypatch, "--desktop")
+
+    assert args.desktop is True
 
 
 def test_apply_outcome_success_updates_snapshot_and_clears_fatal_message() -> None:

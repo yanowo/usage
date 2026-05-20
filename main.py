@@ -57,7 +57,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--web",
         action="store_true",
-        help="啟動跨平台 Web 介面（Windows 預設模式）",
+        help="啟動跨平台 Web 介面",
+    )
+    parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="啟動跨平台桌面小視窗（Windows 預設模式）",
     )
     parser.add_argument(
         "--host",
@@ -177,7 +182,15 @@ def main() -> None:
             asyncio.run(
                 run_tui(mock=args.mock, interval=args.interval, force_group=args.force_group)
             )
-    elif args.web or sys.platform != "darwin":
+    elif args.web:
+        from usage_web import run_server
+
+        run_server(host=args.host, port=args.port, mock=args.mock, interval=args.interval)
+    elif args.desktop or sys.platform == "win32":
+        from usage_desktop import run_app as run_desktop_app
+
+        run_desktop_app(mock=args.mock, interval=args.interval)
+    elif sys.platform != "darwin":
         from usage_web import run_server
 
         run_server(host=args.host, port=args.port, mock=args.mock, interval=args.interval)
