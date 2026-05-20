@@ -49,7 +49,7 @@ flowchart LR
 
 ### Codex 用量
 
-Codex CLI 沒有 statusLine hook 這種機制，所以 usage 採另一條路：掃 Codex CLI 在 `~/.codex/sessions/` 底下留下的 `*.jsonl` 對話紀錄檔。Codex 每次對話會在紀錄裡寫入 `rate_limits`（配額資訊），usage 直接讀裡面的 5 小時跟 7 天用量百分比，不需要自己計算。今日的 token 用量跟成本則從同一份紀錄的 token 統計加總。
+Codex CLI 沒有 statusLine hook 這種機制，所以 usage 採另一條路：掃 Codex CLI 在 `~/.codex/sessions/` 底下留下的 `*.jsonl` 對話紀錄檔。Codex 每次對話會在紀錄裡寫入 `rate_limits`（配額資訊），usage 會依 `window_minutes=300` 與 `window_minutes=10080` 分別對應 CLI 的 5h 與 weekly 用量百分比，不自己估算。今日的 token 用量跟成本則從同一份紀錄的 token 統計加總。
 
 沒裝 Codex 或沒這個資料夾的話，這部分會自動隱藏，不會影響 Claude Code 那邊的顯示。
 
@@ -168,7 +168,7 @@ Desktop 小工具支援：
 - 左上角拖曳調整視窗大小，避免右下角被其他桌面元件遮住
 - `Alpha` 滑桿調整透明度
 - `Pinned / Pin` 切換是否永遠置頂
-- `Mini` 模式縮成單一 `Codex` 或 `Claude` 用量與更新時間，降低遮蔽桌面的面積
+- `Mini` 模式縮成單一 `Codex` 或 `Claude` 的 `5h / Weekly` 用量與更新時間，降低遮蔽桌面的面積
 - `Style` 在 `Classic / Taiwan / Matrix / ECG / Minimal / Sketch` 之間切換，對齊 macOS 版原本的小工具 template
 
 ```powershell
@@ -236,7 +236,7 @@ python3 main.py
   <img src="docs/menubar.png" alt="menu bar 上方顯示樣式" width="240">
 
 - **點一下會展開 popover**，分三塊：
-  1. 上面兩張卡片分別是 Claude Code 跟 Codex，每張各有 Session（這 5 小時）跟 Weekly（這 7 天）兩條進度條，旁邊標重置倒數
+  1. 上面兩張卡片分別是 Claude Code 跟 Codex，每張各有 `5h` 跟 `Weekly` 兩條進度條，旁邊標重置倒數
   2. 最下面那張小卡是目前速率、同步狀態、今日 token 用量與成本估算（Claude 若 log 有提供實際金額則直接顯示；Codex 成本為依 token 數估算）
   3. 兩顆按鈕：「立即更新」、「結束」
 - **切換面板**（v0.3.0+）：在 Claude Code 卡片的右上角有一顆「⇄ 更換」按鈕（台灣面板則放在頂部標題列裡），點下去會跳出選單列出可選的面板樣式。目前內建六款：

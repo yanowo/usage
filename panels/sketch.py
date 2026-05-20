@@ -398,13 +398,13 @@ class SketchContentView(NSView):
     def _claude_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
         state = self.state
         if state is None:
-            return (_placeholder_row("Session"), _placeholder_row("Weekly"))
+            return (_placeholder_row("5h"), _placeholder_row("Weekly"))
         return (state.claude_session, state.claude_weekly)
 
     def _codex_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
         state = self.state
         if state is None:
-            return (_placeholder_row("Session"), _placeholder_row("Weekly"))
+            return (_placeholder_row("5h"), _placeholder_row("Weekly"))
         return (state.codex_session, state.codex_weekly)
 
     def setState_(self, state: PopoverState) -> None:

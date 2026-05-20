@@ -49,7 +49,7 @@ Read priority:
 
 ### Codex usage
 
-Codex CLI doesn't expose a statusLine hook, so usage takes a different route: it scans the conversation logs Codex CLI leaves on disk (`~/.codex/sessions/*.jsonl`). Codex writes `rate_limits` data directly into each log entry — usage reads those fields to get the 5-hour and 7-day quota percentages directly. Today's token count and cost are summed from the token usage recorded in the same files.
+Codex CLI doesn't expose a statusLine hook, so usage takes a different route: it scans the conversation logs Codex CLI leaves on disk (`~/.codex/sessions/*.jsonl`). Codex writes `rate_limits` data directly into each log entry — usage maps `window_minutes=300` to the CLI 5h quota and `window_minutes=10080` to the weekly quota. Today's token count and cost are summed from the token usage recorded in the same files.
 
 If Codex isn't installed or the directory doesn't exist, that part of the UI hides itself and Claude Code stats continue to work normally.
 
@@ -166,7 +166,7 @@ The desktop widget supports:
 - dragging the upper-left grip to resize the window, so the control is less likely to be covered by other desktop widgets
 - the `Alpha` slider for opacity
 - `Pinned / Pin` to toggle always-on-top
-- `Mini` mode, which shrinks the widget to one `Codex` or `Claude` usage readout plus the last update time
+- `Mini` mode, which shrinks the widget to one `Codex` or `Claude` `5h / Weekly` readout plus the last update time
 - `Style` switching between `Classic / Taiwan / Matrix / ECG / Minimal / Sketch`, aligned with the macOS widget templates
 
 ```powershell
@@ -234,7 +234,7 @@ python3 main.py
   <img src="docs/menubar.png" alt="menu bar display" width="240">
 
 - **Click the icon to expand the popover.** It has three sections:
-  1. Two cards for Claude Code and Codex, each with Session (5-hour) and Weekly (7-day) progress bars and a reset countdown.
+  1. Two cards for Claude Code and Codex, each with `5h` and `Weekly` progress bars and a reset countdown.
   2. A footer card showing current rate, sync status, and today's token usage and cost estimate (Claude uses the actual `costUSD` from its log when available; Codex cost is estimated from token count × pricing table).
   3. Two buttons: "Refresh now" and "Quit".
 - **Switch panel** (v0.3.0+): a `⇄ Switch` button sits in the Claude Code card's top-right corner (the Taiwan panel embeds it in the top header bar instead) and opens a menu of available panel styles. Six are built in:

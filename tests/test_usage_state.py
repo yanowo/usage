@@ -91,6 +91,7 @@ def test_empty_state() -> None:
     )
 
     assert all(row.available is False for row in rows)
+    assert [row.title for row in rows] == ["5h", "Weekly", "5h", "Weekly"]
     assert state.show_install_button is False
 
 

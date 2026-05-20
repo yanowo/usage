@@ -17,6 +17,8 @@ CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
+FIVE_HOUR_TITLE = "5h"
+WEEKLY_TITLE = "Weekly"
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +132,10 @@ def format_percent(value: float) -> str:
 
 def empty_state() -> PopoverState:
     return PopoverState(
-        claude_session=missing_row("Session", CLAUDE_COLOR),
-        claude_weekly=missing_row("Weekly", CLAUDE_COLOR),
-        codex_session=missing_row("Session", CODEX_COLOR),
-        codex_weekly=missing_row("Weekly", CODEX_COLOR),
+        claude_session=missing_row(FIVE_HOUR_TITLE, CLAUDE_COLOR),
+        claude_weekly=missing_row(WEEKLY_TITLE, CLAUDE_COLOR),
+        codex_session=missing_row(FIVE_HOUR_TITLE, CODEX_COLOR),
+        codex_weekly=missing_row(WEEKLY_TITLE, CODEX_COLOR),
         rate_text="速率：--",
         status_text="狀態：載入中",
         today_text="今日：$0.00 (0 tokens)",
@@ -153,8 +155,8 @@ def codex_rows(mock: bool = False) -> tuple[tuple[QuotaRowState, QuotaRowState],
     if mock:
         now = time.time()
         rows = (
-            quota_row("Session", 12.0, now + (4 * 3600) + (15 * 60), now, CODEX_COLOR),
-            quota_row("Weekly", 28.0, now + (4 * 86400), now, CODEX_COLOR),
+            quota_row(FIVE_HOUR_TITLE, 12.0, now + (4 * 3600) + (15 * 60), now, CODEX_COLOR),
+            quota_row(WEEKLY_TITLE, 28.0, now + (4 * 86400), now, CODEX_COLOR),
         )
         return rows, 12
 
@@ -166,7 +168,7 @@ def codex_rows(mock: bool = False) -> tuple[tuple[QuotaRowState, QuotaRowState],
         rate_limits = None
 
     if rate_limits is None:
-        rows = missing_row("Session", CODEX_COLOR), missing_row("Weekly", CODEX_COLOR)
+        rows = missing_row(FIVE_HOUR_TITLE, CODEX_COLOR), missing_row(WEEKLY_TITLE, CODEX_COLOR)
         return rows, None
 
     now = time.time()
@@ -175,14 +177,14 @@ def codex_rows(mock: bool = False) -> tuple[tuple[QuotaRowState, QuotaRowState],
     )
     rows = (
         quota_row(
-            "Session",
+            FIVE_HOUR_TITLE,
             rate_limits.five_hour_pct,
             rate_limits.five_hour_resets_at,
             now,
             CODEX_COLOR,
         ),
         quota_row(
-            "Weekly",
+            WEEKLY_TITLE,
             rate_limits.seven_day_pct,
             rate_limits.seven_day_resets_at,
             now,
@@ -206,14 +208,14 @@ def state_from_outcome(
     if outcome.state == PollState.SUCCESS and outcome.snapshot is not None:
         snapshot = outcome.snapshot
         claude_session = quota_row(
-            "Session",
+            FIVE_HOUR_TITLE,
             float(snapshot.current_percent) if snapshot.current_percent is not None else None,
             snapshot.current_reset_at,
             now,
             CLAUDE_COLOR,
         )
         claude_weekly = quota_row(
-            "Weekly",
+            WEEKLY_TITLE,
             float(snapshot.weekly_percent) if snapshot.weekly_percent is not None else None,
             snapshot.weekly_reset_at,
             now,
@@ -221,8 +223,8 @@ def state_from_outcome(
         )
         status_text = f"狀態：{outcome.message or '✓ 已同步'}"
     else:
-        claude_session = missing_row("Session", CLAUDE_COLOR)
-        claude_weekly = missing_row("Weekly", CLAUDE_COLOR)
+        claude_session = missing_row(FIVE_HOUR_TITLE, CLAUDE_COLOR)
+        claude_weekly = missing_row(WEEKLY_TITLE, CLAUDE_COLOR)
         status_text = f"狀態：{outcome.message or '無資料'}"
 
     return PopoverState(

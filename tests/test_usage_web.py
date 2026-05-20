@@ -4,6 +4,8 @@ from usage_client import PollOutcome, PollState
 from usage_state import (
     CLAUDE_COLOR,
     CODEX_COLOR,
+    FIVE_HOUR_TITLE,
+    WEEKLY_TITLE,
     PopoverState,
     QuotaRowState,
     UsageViewResult,
@@ -16,11 +18,11 @@ from usage_web import _query_flag, _query_layout, render_html, rgb_to_hex, usage
 def _state() -> PopoverState:
     now = 1_000.0
     return PopoverState(
-        claude_session=quota_row("Session", 42.0, now + 90, now, CLAUDE_COLOR),
-        claude_weekly=quota_row("Weekly", 7.0, now + 3600, now, CLAUDE_COLOR),
-        codex_session=missing_row("Session", CODEX_COLOR),
+        claude_session=quota_row(FIVE_HOUR_TITLE, 42.0, now + 90, now, CLAUDE_COLOR),
+        claude_weekly=quota_row(WEEKLY_TITLE, 7.0, now + 3600, now, CLAUDE_COLOR),
+        codex_session=missing_row(FIVE_HOUR_TITLE, CODEX_COLOR),
         codex_weekly=QuotaRowState(
-            title="Weekly",
+            title=WEEKLY_TITLE,
             percent=81.0,
             percent_text="81% 已用",
             reset_text="重置 1d 0h",

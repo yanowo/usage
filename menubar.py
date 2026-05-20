@@ -47,7 +47,9 @@ from usage_state import (
     CLAUDE_COLOR,
     CODEX_COLOR,
     DANGER_COLOR,
+    FIVE_HOUR_TITLE,
     WARN_COLOR,
+    WEEKLY_TITLE,
     PopoverState,
     QuotaRowState,
     format_human_time,
@@ -347,14 +349,14 @@ class AppDelegate(NSObject):
             snapshot = outcome.snapshot
             group_name = GROUP_NAMES[self.tracker.group()]
             claude_session = _quota_row(
-                "Session",
+                FIVE_HOUR_TITLE,
                 float(snapshot.current_percent) if snapshot.current_percent is not None else None,
                 snapshot.current_reset_at,
                 now,
                 CLAUDE_COLOR,
             )
             claude_weekly = _quota_row(
-                "Weekly",
+                WEEKLY_TITLE,
                 float(snapshot.weekly_percent) if snapshot.weekly_percent is not None else None,
                 snapshot.weekly_reset_at,
                 now,
@@ -362,8 +364,8 @@ class AppDelegate(NSObject):
             )
             status_text = f"狀態：{outcome.message or '✓ 已同步'}"
         else:
-            claude_session = _missing_row("Session", CLAUDE_COLOR)
-            claude_weekly = _missing_row("Weekly", CLAUDE_COLOR)
+            claude_session = _missing_row(FIVE_HOUR_TITLE, CLAUDE_COLOR)
+            claude_weekly = _missing_row(WEEKLY_TITLE, CLAUDE_COLOR)
             status_text = f"狀態：{outcome.message or '無資料'}"
 
         return PopoverState(
@@ -381,8 +383,14 @@ class AppDelegate(NSObject):
         if self.mock:
             now = time.time()
             rows = (
-                _quota_row("Session", 12.0, now + (4 * 3600) + (15 * 60), now, CODEX_COLOR),
-                _quota_row("Weekly", 28.0, now + (4 * 86400), now, CODEX_COLOR),
+                _quota_row(
+                    FIVE_HOUR_TITLE,
+                    12.0,
+                    now + (4 * 3600) + (15 * 60),
+                    now,
+                    CODEX_COLOR,
+                ),
+                _quota_row(WEEKLY_TITLE, 28.0, now + (4 * 86400), now, CODEX_COLOR),
             )
             return rows, 12
 
@@ -394,7 +402,10 @@ class AppDelegate(NSObject):
             rate_limits = None
 
         if rate_limits is None:
-            rows = _missing_row("Session", CODEX_COLOR), _missing_row("Weekly", CODEX_COLOR)
+            rows = _missing_row(FIVE_HOUR_TITLE, CODEX_COLOR), _missing_row(
+                WEEKLY_TITLE,
+                CODEX_COLOR,
+            )
             return rows, None
 
         now = time.time()
@@ -403,14 +414,14 @@ class AppDelegate(NSObject):
         )
         rows = (
             _quota_row(
-                "Session",
+                FIVE_HOUR_TITLE,
                 rate_limits.five_hour_pct,
                 rate_limits.five_hour_resets_at,
                 now,
                 CODEX_COLOR,
             ),
             _quota_row(
-                "Weekly",
+                WEEKLY_TITLE,
                 rate_limits.seven_day_pct,
                 rate_limits.seven_day_resets_at,
                 now,

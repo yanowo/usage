@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 import tkinter as tk
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from datetime import datetime
 from functools import partial
 from typing import Any
 
+import codex_loader
 from usage_rate import UsageRateTracker
 from usage_state import (
     CLAUDE_COLOR,
@@ -15,6 +17,7 @@ from usage_state import (
     PopoverState,
     QuotaRowState,
     UsageViewResult,
+    codex_rows,
     empty_state,
     fetch_usage_view,
 )
@@ -23,9 +26,10 @@ PRODUCTS = ("all", "claude", "codex")
 MIN_WIDTH = 330
 MIN_HEIGHT = 420
 MINI_WIDTH = 250
-MINI_HEIGHT = 122
+MINI_HEIGHT = 150
 DEFAULT_OPACITY = 1.0
 MIN_OPACITY = 0.55
+CODEX_POLL_SECONDS = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,10 +297,13 @@ class DesktopUsageApp:
         self.selected_product = "all"
         self.latest_state = empty_state()
         self.refreshing = False
+        self.codex_refreshing = False
         self.topmost_enabled = True
         self.mini_mode = False
         self.opacity = DEFAULT_OPACITY
         self.full_geometry: str | None = None
+        self.last_codex_mtime = codex_loader.latest_usage_source_mtime()
+        self.last_codex_poll = 0.0
         self.drag_start: tuple[int, int] | None = None
         self.resize_start: tuple[int, int, int, int, int, int] | None = None
 
@@ -327,6 +334,7 @@ class DesktopUsageApp:
     def run(self) -> None:
         self._render()
         self.refresh()
+        self._watch_codex_sessions()
         self.root.mainloop()
 
     def _build_ui(self) -> None:
@@ -666,6 +674,7 @@ class DesktopUsageApp:
         if result is None:
             return
         self.latest_state = result.state
+        self._sync_codex_rows()
         updated = datetime.fromtimestamp(result.fetched_at).strftime("%H:%M:%S")
         self.updated_time_var.set(f"updated {updated}")
         self.updated_var.set(f"{clean_label(result.state.rate_text)} · {result.state.today_text}")
@@ -738,19 +747,60 @@ class DesktopUsageApp:
             fg=self.palette.text,
             anchor="w",
             font=(self.font_family, 12, "bold"),
-        ).pack(side="left")
-        tk.Label(
-            header,
-            text=product.session.percent_text,
-            bg=self.palette.panel,
-            fg=product.accent,
-            anchor="e",
-            font=(self.font_family, 11, "bold"),
-        ).pack(side="right")
+        ).pack(fill="x")
 
         self._build_quota_row(frame, product.session, product.accent)
         self._build_quota_row(frame, product.weekly, product.accent)
         return frame
+
+    def _watch_codex_sessions(self) -> None:
+        current_mtime = codex_loader.latest_usage_source_mtime()
+        now = time.monotonic()
+        source_changed = current_mtime is not None and current_mtime != self.last_codex_mtime
+        poll_due = now - self.last_codex_poll >= CODEX_POLL_SECONDS
+        if source_changed and current_mtime is not None:
+            self.last_codex_mtime = current_mtime
+        if (source_changed or poll_due) and not self.refreshing and not self.codex_refreshing:
+            self._refresh_codex_rows()
+        self.root.after(5_000, self._watch_codex_sessions)
+
+    def _refresh_codex_rows(self) -> None:
+        self.codex_refreshing = True
+        thread = threading.Thread(target=self._fetch_codex_rows_in_background, daemon=True)
+        thread.start()
+
+    def _fetch_codex_rows_in_background(self) -> None:
+        try:
+            rows, _codex_5h_pct = codex_rows(self.mock)
+        except Exception as exc:
+            self.root.after(0, partial(self._apply_codex_rows, None, exc))
+        else:
+            self.root.after(0, partial(self._apply_codex_rows, rows, None))
+
+    def _apply_codex_rows(
+        self,
+        rows: tuple[QuotaRowState, QuotaRowState] | None,
+        error: Exception | None,
+    ) -> None:
+        self.codex_refreshing = False
+        if error is not None:
+            self.status_var.set(f"Codex refresh error: {type(error).__name__}: {error}")
+            return
+        if rows is None:
+            return
+        self.latest_state.codex_session = rows[0]
+        self.latest_state.codex_weekly = rows[1]
+        self.last_codex_poll = time.monotonic()
+        updated = datetime.now().strftime("%H:%M:%S")
+        self.updated_time_var.set(f"updated {updated}")
+        self.status_var.set(f"{clean_label(self.latest_state.status_text)} · updated {updated}")
+        self._render()
+
+    def _sync_codex_rows(self) -> None:
+        rows, _codex_5h_pct = codex_rows(self.mock)
+        self.latest_state.codex_session = rows[0]
+        self.latest_state.codex_weekly = rows[1]
+        self.last_codex_poll = time.monotonic()
 
     def _build_mini_card(self, product: ProductView) -> tk.Frame:
         if self.cards is None:
@@ -772,26 +822,10 @@ class DesktopUsageApp:
             fg=self.palette.text,
             anchor="w",
             font=(self.font_family, 10, "bold"),
-        ).pack(side="left")
-        tk.Label(
-            top,
-            text=product.session.percent_text,
-            bg=self.palette.panel,
-            fg=product.accent,
-            anchor="e",
-            font=(self.font_family, 12, "bold"),
-        ).pack(side="right")
+        ).pack(fill="x")
 
-        bar = tk.Canvas(
-            frame,
-            width=210,
-            height=6,
-            bg=self.palette.panel,
-            highlightthickness=0,
-        )
-        bar.pack(fill="x", pady=(7, 4))
-        self._bind_bar_resize(bar, product.session, product.accent)
-
+        self._build_mini_quota_row(frame, product.session, product.accent)
+        self._build_mini_quota_row(frame, product.weekly, product.accent)
         tk.Label(
             frame,
             textvariable=self.updated_time_var,
@@ -801,6 +835,41 @@ class DesktopUsageApp:
             font=(self.font_family, 8),
         ).pack(fill="x")
         return frame
+
+    def _build_mini_quota_row(
+        self,
+        parent: tk.Frame,
+        row: QuotaRowState,
+        fallback_color: str,
+    ) -> None:
+        row_frame = tk.Frame(parent, bg=self.palette.panel)
+        row_frame.pack(fill="x", pady=(6, 0))
+        tk.Label(
+            row_frame,
+            text=row.title,
+            bg=self.palette.panel,
+            fg=self.palette.text,
+            anchor="w",
+            font=(self.font_family, 8, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            row_frame,
+            text=row.percent_text,
+            bg=self.palette.panel,
+            fg=fallback_color,
+            anchor="e",
+            font=(self.font_family, 8, "bold"),
+        ).pack(side="right")
+
+        bar = tk.Canvas(
+            parent,
+            width=210,
+            height=4,
+            bg=self.palette.panel,
+            highlightthickness=0,
+        )
+        bar.pack(fill="x", pady=(3, 0))
+        self._bind_bar_resize(bar, row, fallback_color)
 
     def _build_quota_row(
         self,
@@ -822,12 +891,20 @@ class DesktopUsageApp:
         ).pack(side="left")
         tk.Label(
             top,
+            text=row.percent_text,
+            bg=self.palette.panel,
+            fg=fallback_color,
+            anchor="e",
+            font=(self.font_family, 9, "bold"),
+        ).pack(side="right")
+        tk.Label(
+            block,
             text=row.reset_text,
             bg=self.palette.panel,
             fg=self.palette.muted,
-            anchor="e",
+            anchor="w",
             font=(self.font_family, 8),
-        ).pack(side="right")
+        ).pack(fill="x", pady=(2, 0))
 
         bar = tk.Canvas(
             block,
