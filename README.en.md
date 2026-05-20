@@ -160,17 +160,30 @@ Windows does not have the macOS menu bar API, so usage starts a local web server
 python main.py --web
 ```
 
-The server prints three entry points:
+The server prints these entry points:
 
-- `http://127.0.0.1:8765/` — full web panel
-- `http://127.0.0.1:8765/compact` — compact panel for desktop widgets
+- `http://127.0.0.1:8765/` — the main page, with product, theme, and layout switching
+- `http://127.0.0.1:8765/?layout=compact` — compact layout on the same main page
+- `http://127.0.0.1:8765/?layout=horizontal` — wide horizontal layout on the same main page
 - `http://127.0.0.1:8765/api/usage` — JSON API
 
-For a desktop widget, use `http://127.0.0.1:8765/compact`. To change the port:
+For a desktop widget, use `http://127.0.0.1:8765/?layout=compact` or `http://127.0.0.1:8765/?layout=horizontal`. To change the port:
 
 ```powershell
 python main.py --web --port 9000
 ```
+
+The main page has `All / Claude / Codex`, `Full / Compact / Wide`, and `Dark / Light` controls in the top-right corner. Choices are saved in browser localStorage. You can also pin them in the URL:
+
+- `http://127.0.0.1:8765/?product=claude`
+- `http://127.0.0.1:8765/?product=codex`
+- `http://127.0.0.1:8765/?layout=compact`
+- `http://127.0.0.1:8765/?layout=horizontal`
+
+Dark mode is available from the `Dark / Light` toggle, and from URL parameters:
+
+- `http://127.0.0.1:8765/?theme=dark`
+- `http://127.0.0.1:8765/?layout=horizontal&theme=light`
 
 ### Menu bar mode (macOS default)
 
@@ -306,7 +319,7 @@ The "Fix" column distinguishes three kinds of users — find yours first:
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
-| `python main.py` on Windows does not open a native window | Windows uses the local web server mode | Open the printed URL, or use `http://127.0.0.1:8765/compact` directly |
+| `python main.py` on Windows does not open a native window | Windows uses the local web server mode | Open the printed URL, or use `http://127.0.0.1:8765/?layout=compact` directly |
 | Desktop widget cannot open the URL | The usage web server is not running, or the port changed/is occupied | Run `python main.py --web` again and copy the printed URL. If you changed the port, update the widget URL too |
 | Accidentally hit "Quit", paw icon disappeared from the menu bar | "Quit" fully terminates the usage process; you have to relaunch it | **.app users**: press `Cmd+Space` for Spotlight, type `usage`, hit Enter; or double-click `usage.app` from `/Applications`. **LaunchAgent users**: run `launchctl start com.lollapalooza.usage` in Terminal. **Source users**: run `python3 main.py` in Terminal again |
 | Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |

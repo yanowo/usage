@@ -10,7 +10,7 @@ from usage_state import (
     missing_row,
     quota_row,
 )
-from usage_web import render_html, rgb_to_hex, usage_payload
+from usage_web import _query_flag, _query_layout, render_html, rgb_to_hex, usage_payload
 
 
 def _state() -> PopoverState:
@@ -57,8 +57,44 @@ def test_usage_payload_contains_widget_data() -> None:
 
 
 def test_render_html_sets_mode_and_interval() -> None:
-    html = render_html(compact=True, interval=30)
+    html = render_html(layout="compact", interval=30)
 
     assert '<body class="compact">' in html
     assert "const intervalMs = 30000;" in html
     assert "/api/usage" in html
+
+
+def test_render_html_includes_full_panel_controls() -> None:
+    html = render_html(layout="full", interval=60)
+
+    assert 'data-product="claude"' in html
+    assert 'data-product="codex"' in html
+    assert 'data-layout="compact"' in html
+    assert 'data-layout="horizontal"' in html
+    assert 'id="themeToggle"' in html
+    assert "usage.theme" in html
+    assert "usage.layout" in html
+
+
+def test_render_html_sets_horizontal_compact_mode() -> None:
+    html = render_html(layout="horizontal", interval=30)
+
+    assert '<body class="compact horizontal">' in html
+    assert "body.compact.horizontal .grid" in html
+
+
+def test_render_html_falls_back_to_full_layout() -> None:
+    assert '<body class="full">' in render_html(layout="bad", interval=30)
+
+
+def test_query_flag_accepts_horizontal_layout_aliases() -> None:
+    assert _query_flag({"horizontal": ["1"]}, "horizontal") is True
+    assert _query_flag({"layout": ["horizontal"]}, "horizontal") is True
+    assert _query_flag({"horizontal": ["0"], "layout": ["vertical"]}, "horizontal") is False
+
+
+def test_query_layout_accepts_root_page_layout_params() -> None:
+    assert _query_layout({"layout": ["compact"]}) == "compact"
+    assert _query_layout({"view": ["horizontal"]}) == "horizontal"
+    assert _query_layout({"compact": ["true"]}) == "compact"
+    assert _query_layout({"layout": ["bad"]}) == "full"
