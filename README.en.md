@@ -5,10 +5,10 @@
 [![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
 [![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](README.en.md)
 [![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
 
-`usage` is a macOS menu bar tool that pins your **Claude Code and Codex** usage to the top-right of your screen. Click the icon for a popover showing the current 5-hour usage, the current 7-day usage, and today's token usage and cost estimate.
+`usage` shows your **Claude Code and Codex** usage locally. On macOS it can live in the menu bar; on Windows it runs as a local web UI so a browser or desktop widget can open a URL and show current 5-hour usage, 7-day usage, and today's token usage and cost estimate.
 
 It **never calls the Anthropic / OpenAI API** and **never reads the Keychain**, so it avoids the observer effect of "pinging once a minute counts as usage."
 
@@ -35,8 +35,8 @@ Since both sides look at the same source data, **the numbers match exactly what 
 flowchart LR
     A[Claude Code main process] -->|pipes JSON to stdin<br/>on every statusLine refresh| B[usage-statusline.py<br/>hook script]
     B -->|writes| C[(~/.claude/<br/>usage-status.json)]
-    D[usage menu bar / TUI] -->|reads| C
-    D -->|renders| E[macOS menu bar]
+    D[usage menu bar / Web / TUI] -->|reads| C
+    D -->|renders| E[macOS menu bar / browser / widget URL]
     F((Anthropic API)) -.x.- D
     style F stroke:#c0392b,stroke-dasharray:5 5
 ```
@@ -55,7 +55,7 @@ If Codex isn't installed or the directory doesn't exist, that part of the UI hid
 
 ## Requirements
 
-- macOS
+- macOS or Windows
 - Python 3.13
 - Claude Code installed and signed in (Codex is optional)
 
@@ -63,7 +63,8 @@ If Codex isn't installed or the directory doesn't exist, that part of the UI hid
 
 | I want to… | How |
 |-----------|-----|
-| Just use it, no setup | [Download the app](#download-the-app) |
+| Use it on macOS with no setup | [Download the app](#download-the-app) |
+| Use it on Windows or a desktop widget URL | [Web mode](#web-mode-windows-default) |
 | Run from source | [Set up the environment](#set-up-the-environment) |
 | Preview the UI without installing | [Preview mode](#preview-mode-no-install-required) |
 
@@ -104,6 +105,14 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+Windows PowerShell:
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+```
+
 This creates an isolated Python environment (`.venv`) for the project, activates it, and installs usage plus its dependencies into it.
 
 ## First install (wire up the Claude Code hook — source mode only)
@@ -115,6 +124,13 @@ This single command does two things: copies the hook script into `~/.claude/`, a
 ```bash
 source .venv/bin/activate
 python3 main.py --setup
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py --setup
 ```
 
 **Restart Claude Code once after running this** so it re-reads `~/.claude/settings.json` and refreshes its status line. That refresh is when usage data first lands on disk.
@@ -135,7 +151,28 @@ python3 main.py --unsetup
 
 ## Run modes
 
-### Menu bar mode (default)
+### Web mode (Windows default)
+
+Windows does not have the macOS menu bar API, so usage starts a local web server by default. Open the printed URL in a browser or point any desktop widget that can render a web URL at it.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py --web
+```
+
+The server prints three entry points:
+
+- `http://127.0.0.1:8765/` — full web panel
+- `http://127.0.0.1:8765/compact` — compact panel for desktop widgets
+- `http://127.0.0.1:8765/api/usage` — JSON API
+
+For a desktop widget, use `http://127.0.0.1:8765/compact`. To change the port:
+
+```powershell
+python main.py --web --port 9000
+```
+
+### Menu bar mode (macOS default)
 
 Stays in the macOS menu bar with a short percentage readout. Click it to open the full popover.
 
@@ -219,6 +256,9 @@ If you haven't installed the hook yet, or you just want to see what the UI looks
 # Menu bar preview
 python3 main.py --mock
 
+# Web preview (Windows / browser / widget)
+python3 main.py --web --mock
+
 # TUI preview
 python3 main.py --tui --mock
 ```
@@ -226,6 +266,9 @@ python3 main.py --tui --mock
 ## Options
 
 - `--setup` / `--unsetup` — install or remove the Claude Code statusLine hook.
+- `--web` — start the cross-platform web UI (default on Windows).
+- `--host HOST` — web server bind address, default `127.0.0.1`.
+- `--port PORT` — web server port, default `8765`.
 - `--tui` — force terminal TUI mode (no menu bar).
 - `--interval N` — how often (seconds) the UI re-reads the status file. Minimum 30, default 60.
 - `--mock` — use fake data; don't read any status file.
@@ -239,6 +282,12 @@ To see internal warnings (e.g. swallowed `OSError`s), set:
 USAGE_DEBUG=1 python3 main.py
 ```
 
+Windows PowerShell:
+
+```powershell
+$env:USAGE_DEBUG="1"; python main.py --web
+```
+
 ## Behaviour notes
 
 - usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).
@@ -250,12 +299,15 @@ USAGE_DEBUG=1 python3 main.py
 The "Fix" column distinguishes three kinds of users — find yours first:
 
 - **.app users** — downloaded `usage.app.zip` from GitHub Releases, unzipped, dragged `usage.app` to `/Applications`, double-click to launch like any Mac app. No Terminal, no Python.
+- **Web / Windows users** — run `python main.py --web` from source, then open the URL in a browser or desktop widget.
 - **LaunchAgent users** — cloned the source and ran `./scripts/install-launchagent.sh` so macOS auto-starts usage on login.
 - **Source users** — cloned the source and run `python3 main.py` manually in Terminal each time.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
+| `python main.py` on Windows does not open a native window | Windows uses the local web server mode | Open the printed URL, or use `http://127.0.0.1:8765/compact` directly |
+| Desktop widget cannot open the URL | The usage web server is not running, or the port changed/is occupied | Run `python main.py --web` again and copy the printed URL. If you changed the port, update the widget URL too |
 | Accidentally hit "Quit", paw icon disappeared from the menu bar | "Quit" fully terminates the usage process; you have to relaunch it | **.app users**: press `Cmd+Space` for Spotlight, type `usage`, hit Enter; or double-click `usage.app` from `/Applications`. **LaunchAgent users**: run `launchctl start com.lollapalooza.usage` in Terminal. **Source users**: run `python3 main.py` in Terminal again |
 | Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |
 | Codex section is empty | `~/.codex/sessions/` doesn't exist or has no `rate_limits` events yet | Run a Codex conversation to generate log entries |

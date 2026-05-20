@@ -1,13 +1,13 @@
 [project]
 name = "usage"
 version = "0.3.4"
-description = "usage — 在 macOS menu bar 顯示 Claude Code 用量的繁中小工具（也提供終端機 TUI）"
+description = "usage — 顯示 Claude Code / Codex 用量的跨平台小工具（macOS menu bar、Web、TUI）"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-    "pyobjc-framework-Cocoa>=11.0",
+    "pyobjc-framework-Cocoa>=11.0; platform_system == 'Darwin'",
     "rich>=14.0.0,<15.0.0",
 ]
 
@@ -26,6 +26,8 @@ py-modules = [
     "usage_statusline",
     "setup_hook",
     "usage_client",
+    "usage_state",
+    "usage_web",
     "codex_loader",
     "tui_sprite",
 ]
@@ -62,6 +64,10 @@ exclude = "^(build|dist)/"
 
 [[tool.mypy.overrides]]
 module = "rich.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["objc", "AppKit", "Foundation"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

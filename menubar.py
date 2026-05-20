@@ -9,8 +9,6 @@ import logging
 import os
 import threading
 import time
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,12 +39,40 @@ from Foundation import (
 
 import codex_loader
 import panels
-from history_loader import load_entries
 from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
-from pricing import calculate_cost
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import GROUP_NAMES, UsageRateTracker
+from usage_state import (
+    CLAUDE_COLOR,
+    CODEX_COLOR,
+    DANGER_COLOR,
+    WARN_COLOR,
+    PopoverState,
+    QuotaRowState,
+    format_human_time,
+)
+from usage_state import (
+    bar_color as _bar_color,
+)
+from usage_state import (
+    empty_state as _empty_state,
+)
+from usage_state import (
+    error_state as _error_state,
+)
+from usage_state import (
+    format_percent as _format_percent,
+)
+from usage_state import (
+    missing_row as _missing_row,
+)
+from usage_state import (
+    quota_row as _quota_row,
+)
+from usage_state import (
+    today_title as _today_title,
+)
 
 POPOVER_WIDTH = 364.0
 CONTENT_HEIGHT = 574.0
@@ -65,20 +91,25 @@ FOOTER_LINE_GAP = 18.0
 BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
 INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
-CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
-CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
-WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
-DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
-
 logger = logging.getLogger(__name__)
 
-
-def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, float, float]:
-    if pct >= 80:
-        return DANGER_COLOR
-    if pct >= 50:
-        return WARN_COLOR
-    return brand
+__all__ = (
+    "CLAUDE_COLOR",
+    "CODEX_COLOR",
+    "DANGER_COLOR",
+    "WARN_COLOR",
+    "PopoverState",
+    "QuotaRowState",
+    "format_human_time",
+    "_bar_color",
+    "_empty_state",
+    "_error_state",
+    "_format_percent",
+    "_missing_row",
+    "_quota_row",
+    "_today_title",
+    "run_app",
+)
 
 
 def _resolve_resource(name: str) -> str:
@@ -95,42 +126,6 @@ CLAUDE_ICON_PATH = _resolve_resource("claude.webp")
 CODEX_ICON_PATH = _resolve_resource("codex.webp")
 
 _APP_DELEGATE: AppDelegate | None = None
-
-
-@dataclass(slots=True)
-class QuotaRowState:
-    title: str
-    percent: float | None
-    percent_text: str
-    reset_text: str
-    color: tuple[float, float, float]
-    available: bool = True
-
-
-@dataclass(slots=True)
-class PopoverState:
-    claude_session: QuotaRowState
-    claude_weekly: QuotaRowState
-    codex_session: QuotaRowState
-    codex_weekly: QuotaRowState
-    rate_text: str
-    status_text: str
-    today_text: str
-    show_install_button: bool = False
-
-
-def format_human_time(seconds: float) -> str:
-    if seconds <= 0:
-        return "0m"
-    days, remainder = divmod(int(seconds), 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, _ = divmod(remainder, 60)
-
-    if days > 0:
-        return f"{days}d {hours}h"
-    if hours > 0:
-        return f"{hours}h {minutes}m"
-    return f"{minutes}m"
 
 
 class PopoverViewController(NSViewController):
@@ -445,79 +440,3 @@ def _popover_size(state: PopoverState, panel: UsagePanel | None = None) -> Any:
     width, base_height = active_panel.preferred_size()
     height = base_height + (INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0)
     return NSMakeSize(width, height)
-
-
-def _empty_state() -> PopoverState:
-    return PopoverState(
-        claude_session=_missing_row("Session", CLAUDE_COLOR),
-        claude_weekly=_missing_row("Weekly", CLAUDE_COLOR),
-        codex_session=_missing_row("Session", CODEX_COLOR),
-        codex_weekly=_missing_row("Weekly", CODEX_COLOR),
-        rate_text="速率：--",
-        status_text="狀態：載入中",
-        today_text="今日：$0.00 (0 tokens)",
-        show_install_button=False,
-    )
-
-
-def _error_state(message: str, mock: bool) -> PopoverState:
-    state = _empty_state()
-    state.status_text = f"狀態：錯誤 ({message})"
-    state.today_text = _today_title(mock)
-    state.show_install_button = False
-    return state
-
-
-def _quota_row(
-    title: str,
-    pct: float | None,
-    resets_at: float | None,
-    now: float,
-    color: tuple[float, float, float],
-) -> QuotaRowState:
-    if pct is None or resets_at is None:
-        return _missing_row(title, color)
-    pct = max(0.0, min(100.0, float(pct)))
-    return QuotaRowState(
-        title=title,
-        percent=pct,
-        percent_text=f"{_format_percent(pct)}% 已用",
-        reset_text=f"重置 {format_human_time(resets_at - now)}",
-        color=_bar_color(pct, color),
-        available=True,
-    )
-
-
-def _missing_row(title: str, color: tuple[float, float, float]) -> QuotaRowState:
-    return QuotaRowState(
-        title=title,
-        percent=None,
-        percent_text="--",
-        reset_text="重置 --",
-        color=color,
-        available=False,
-    )
-
-
-def _today_title(mock: bool = False) -> str:
-    if mock:
-        return "今日：$45.20 (50,193,442 tokens)"
-
-    today = datetime.now().astimezone().date()
-    total_tokens = 0
-    total_cost = 0.0
-
-    entries = load_entries(hours_back=24) + codex_loader.load_entries(hours_back=24)
-    for entry in entries:
-        if entry.timestamp.astimezone().date() != today:
-            continue
-        total_tokens += entry.total_tokens
-        total_cost += calculate_cost(entry)
-
-    return f"今日：${total_cost:.2f} ({total_tokens:,} tokens)"
-
-
-def _format_percent(value: float) -> str:
-    if value.is_integer():
-        return str(int(value))
-    return f"{value:.1f}"

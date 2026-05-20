@@ -29,6 +29,9 @@ def test_parse_args_defaults(monkeypatch: Any) -> None:
     assert args.mock is False
     assert args.interval == 60
     assert args.tui is False
+    assert args.web is False
+    assert args.host == "127.0.0.1"
+    assert args.port == 8765
     assert args.setup is False
     assert args.unsetup is False
     assert args.force_group is None
@@ -58,6 +61,14 @@ def test_parse_args_setup(monkeypatch: Any) -> None:
     args = _parse_args(monkeypatch, "--setup")
 
     assert args.setup is True
+
+
+def test_parse_args_web_host_and_port(monkeypatch: Any) -> None:
+    args = _parse_args(monkeypatch, "--web", "--host", "0.0.0.0", "--port", "9000")
+
+    assert args.web is True
+    assert args.host == "0.0.0.0"
+    assert args.port == 9000
 
 
 def test_apply_outcome_success_updates_snapshot_and_clears_fatal_message() -> None:

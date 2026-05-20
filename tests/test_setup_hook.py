@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,6 +34,7 @@ def _patch_paths(
     )
     monkeypatch.setattr(setup_hook, "LEGACY_STATUS_FILE", claude_dir / f"{LEGACY_NAME}-status.json")
     monkeypatch.setattr(setup_hook, "_resolve_hook_source", lambda: hook_source)
+    monkeypatch.setattr(setup_hook, "_is_windows", lambda: False)
     monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/python3")
     return settings, hook_target, status_file
 
@@ -60,7 +64,7 @@ def test_setup_backs_up_existing_statusline_and_is_idempotent(
     assert setup_hook.setup() == 0
 
     data = json.loads(settings.read_text(encoding="utf-8"))
-    assert data["statusLine"]["command"] == f"/usr/bin/python3 {hook_target}"
+    assert shlex.split(data["statusLine"]["command"]) == ["/usr/bin/python3", str(hook_target)]
     assert data["usage"]["previousStatusLine"] == original
 
 
@@ -138,9 +142,6 @@ def test_statusline_command_quotes_paths_with_spaces(
 ) -> None:
     """專案 clone 在含空格的路徑（例如中文資料夾）時，
     產生的 statusLine command 必須能被 /bin/sh -c 正確解析。"""
-    import shlex
-    import subprocess
-
     spaced_dir = tmp_path / "claude code小工具"
     spaced_dir.mkdir()
     spaced_python = spaced_dir / "python3"
@@ -152,6 +153,7 @@ def test_statusline_command_quotes_paths_with_spaces(
 
     monkeypatch.setattr(shutil, "which", lambda _: str(spaced_python))
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", spaced_hook)
+    monkeypatch.setattr(setup_hook, "_is_windows", lambda: False)
 
     cmd = setup_hook._statusline_command()
 
@@ -159,6 +161,35 @@ def test_statusline_command_quotes_paths_with_spaces(
     tokens = shlex.split(cmd)
     assert tokens == [str(spaced_python), str(spaced_hook)]
 
-    # /bin/sh -c 真的能跑（即不會被空格切碎）
-    result = subprocess.run(["/bin/sh", "-c", cmd], capture_output=True)
-    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    if sys.platform != "win32":
+        # /bin/sh -c 真的能跑（即不會被空格切碎）
+        result = subprocess.run(["/bin/sh", "-c", cmd], capture_output=True)
+        assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+
+
+def test_statusline_command_uses_windows_quoting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spaced_dir = tmp_path / "claude code widget"
+    spaced_dir.mkdir()
+    python = spaced_dir / "python.exe"
+    hook = spaced_dir / "usage-statusline.py"
+
+    monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
+    monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
+    monkeypatch.setattr(shutil, "which", lambda name: str(python) if name == "python" else None)
+
+    assert setup_hook._statusline_command_parts() == [str(python), str(hook)]
+    assert setup_hook._statusline_command() == f'"{python}" "{hook}"'
+
+
+def test_statusline_command_prefers_windows_launcher(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = tmp_path / "py.exe"
+    hook = tmp_path / "usage-statusline.py"
+    monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
+    monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
+    monkeypatch.setattr(shutil, "which", lambda name: str(launcher) if name == "py" else None)
+
+    assert setup_hook._statusline_command_parts() == [str(launcher), "-3", str(hook)]

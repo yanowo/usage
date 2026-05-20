@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import sys
+
+import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS PyObjC UI tests", allow_module_level=True)
+
 import menubar
 import panels
 from panels.base import (

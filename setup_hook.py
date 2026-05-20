@@ -17,6 +17,7 @@ import os
 import shlex
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -46,9 +47,27 @@ def _resolve_hook_source() -> Path:
 
 
 def _statusline_command() -> str:
-    # 用系統 python3，不綁 venv（hook 只用標準庫）
+    parts = _statusline_command_parts()
+    if _is_windows():
+        return subprocess.list2cmdline(parts)
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def _statusline_command_parts() -> list[str]:
+    # 用系統 Python，不綁 venv（hook 只用標準庫）
+    if _is_windows():
+        launcher = shutil.which("py")
+        if launcher:
+            return [launcher, "-3", str(HOOK_TARGET)]
+        python = shutil.which("python") or shutil.which("python3") or sys.executable or "python"
+        return [python, str(HOOK_TARGET)]
+
     python = shutil.which("python3") or "python3"
-    return f"{shlex.quote(python)} {shlex.quote(str(HOOK_TARGET))}"
+    return [python, str(HOOK_TARGET)]
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
 
 
 def _is_usage_hook(sl: object) -> bool:

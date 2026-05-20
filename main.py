@@ -4,14 +4,15 @@ import argparse
 import asyncio
 import logging
 import os
+import sys
 import time
 from contextlib import suppress
 from typing import Any
 
-import menubar
 from tui import AppViewState, render_screen
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import UsageRateTracker
+from usage_web import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT
 
 SPRITE_INTERVAL_S = [2.0, 0.8, 0.4, 0.15]  # idle/normal/active/heavy
 
@@ -54,6 +55,22 @@ def parse_args() -> argparse.Namespace:
         help="使用舊版終端機 TUI 介面",
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="啟動跨平台 Web 介面（Windows 預設模式）",
+    )
+    parser.add_argument(
+        "--host",
+        default=DEFAULT_WEB_HOST,
+        help=f"Web 介面綁定位址，預設 {DEFAULT_WEB_HOST}",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_WEB_PORT,
+        help=f"Web 介面連接埠，預設 {DEFAULT_WEB_PORT}",
+    )
+    parser.add_argument(
         "--force-group",
         type=int,
         choices=[0, 1, 2, 3],
@@ -72,6 +89,8 @@ def parse_args() -> argparse.Namespace:
     )
     args = parser.parse_args()
     args.interval = max(30, args.interval)
+    if args.port <= 0 or args.port > 65535:
+        parser.error("--port must be between 1 and 65535")
     return args
 
 
@@ -158,7 +177,13 @@ def main() -> None:
             asyncio.run(
                 run_tui(mock=args.mock, interval=args.interval, force_group=args.force_group)
             )
+    elif args.web or sys.platform != "darwin":
+        from usage_web import run_server
+
+        run_server(host=args.host, port=args.port, mock=args.mock, interval=args.interval)
     else:
+        import menubar
+
         menubar.run_app(mock=args.mock, interval=args.interval)
 
 
