@@ -65,15 +65,15 @@ def test_window_setting_helpers() -> None:
     ) == (usage_desktop.MINI_WIDTH, usage_desktop.MINI_HEIGHT)
     assert usage_desktop.top_left_resize_geometry(80, 90, 400, 500, -30, 40) == (
         430,
-        460,
+        usage_desktop.MIN_HEIGHT,
         50,
-        130,
+        110,
     )
     assert usage_desktop.top_left_resize_geometry(80, 90, 400, 500, 300, 300) == (
         usage_desktop.MIN_WIDTH,
         usage_desktop.MIN_HEIGHT,
         150,
-        170,
+        110,
     )
     assert usage_desktop.mini_product("all") == "codex"
     assert usage_desktop.mini_product("claude") == "claude"

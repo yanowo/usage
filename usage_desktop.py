@@ -24,9 +24,11 @@ from usage_state import (
 
 PRODUCTS = ("all", "claude", "codex")
 MIN_WIDTH = 330
-MIN_HEIGHT = 420
-MINI_WIDTH = 250
-MINI_HEIGHT = 150
+MIN_HEIGHT = 480
+DEFAULT_WIDTH = 390
+DEFAULT_HEIGHT = 570
+MINI_WIDTH = 310
+MINI_HEIGHT = 170
 DEFAULT_OPACITY = 1.0
 MIN_OPACITY = 0.55
 CODEX_POLL_SECONDS = 5
@@ -308,7 +310,7 @@ class DesktopUsageApp:
         self.resize_start: tuple[int, int, int, int, int, int] | None = None
 
         self.root.title("usage")
-        self.root.geometry("390x540+80+80")
+        self.root.geometry(f"{DEFAULT_WIDTH}x{DEFAULT_HEIGHT}+80+80")
         self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
         self.root.resizable(True, True)
         self.root.attributes("-topmost", self.topmost_enabled)
@@ -511,7 +513,7 @@ class DesktopUsageApp:
             return
         footer = tk.Frame(self.shell, bg=self.palette.panel, highlightthickness=1)
         footer.configure(highlightbackground=self.palette.line)
-        footer.pack(fill="x", pady=(10, 0))
+        footer.pack(fill="x", pady=(8, 0))
 
         tk.Label(
             footer,
@@ -522,12 +524,12 @@ class DesktopUsageApp:
             justify="left",
             wraplength=340,
             padx=10,
-            pady=7,
+            pady=5,
             font=(self.font_family, 9, "bold"),
         ).pack(fill="x")
 
         footer_bottom = tk.Frame(footer, bg=self.palette.panel)
-        footer_bottom.pack(fill="x", pady=(0, 7))
+        footer_bottom.pack(fill="x", pady=(0, 5))
         tk.Label(
             footer_bottom,
             textvariable=self.updated_var,
@@ -734,7 +736,7 @@ class DesktopUsageApp:
             self.cards,
             bg=self.palette.panel,
             padx=12,
-            pady=11,
+            pady=9,
             highlightthickness=1,
             highlightbackground=self.palette.line,
         )
@@ -809,7 +811,7 @@ class DesktopUsageApp:
             self.cards,
             bg=self.palette.panel,
             padx=10,
-            pady=9,
+            pady=7,
             highlightthickness=1,
             highlightbackground=self.palette.line,
         )
@@ -843,7 +845,7 @@ class DesktopUsageApp:
         fallback_color: str,
     ) -> None:
         row_frame = tk.Frame(parent, bg=self.palette.panel)
-        row_frame.pack(fill="x", pady=(6, 0))
+        row_frame.pack(fill="x", pady=(5, 0))
         tk.Label(
             row_frame,
             text=row.title,
@@ -852,23 +854,33 @@ class DesktopUsageApp:
             anchor="w",
             font=(self.font_family, 8, "bold"),
         ).pack(side="left")
+        meta = tk.Frame(row_frame, bg=self.palette.panel)
+        meta.pack(side="right")
         tk.Label(
-            row_frame,
+            meta,
+            text=row.reset_text,
+            bg=self.palette.panel,
+            fg=self.palette.muted,
+            anchor="e",
+            font=(self.font_family, 7),
+        ).pack(side="right")
+        tk.Label(
+            meta,
             text=row.percent_text,
             bg=self.palette.panel,
             fg=fallback_color,
             anchor="e",
             font=(self.font_family, 8, "bold"),
-        ).pack(side="right")
+        ).pack(side="right", padx=(0, 8))
 
         bar = tk.Canvas(
             parent,
-            width=210,
+            width=280,
             height=4,
             bg=self.palette.panel,
             highlightthickness=0,
         )
-        bar.pack(fill="x", pady=(3, 0))
+        bar.pack(fill="x", pady=(2, 0))
         self._bind_bar_resize(bar, row, fallback_color)
 
     def _build_quota_row(
@@ -878,7 +890,7 @@ class DesktopUsageApp:
         fallback_color: str,
     ) -> None:
         block = tk.Frame(parent, bg=self.palette.panel)
-        block.pack(fill="x", pady=(12, 0))
+        block.pack(fill="x", pady=(9, 0))
         top = tk.Frame(block, bg=self.palette.panel)
         top.pack(fill="x")
         tk.Label(
@@ -889,31 +901,33 @@ class DesktopUsageApp:
             anchor="w",
             font=(self.font_family, 9, "bold"),
         ).pack(side="left")
+        meta = tk.Frame(top, bg=self.palette.panel)
+        meta.pack(side="right")
         tk.Label(
-            top,
+            meta,
+            text=row.reset_text,
+            bg=self.palette.panel,
+            fg=self.palette.muted,
+            anchor="e",
+            font=(self.font_family, 8),
+        ).pack(side="right")
+        tk.Label(
+            meta,
             text=row.percent_text,
             bg=self.palette.panel,
             fg=fallback_color,
             anchor="e",
             font=(self.font_family, 9, "bold"),
-        ).pack(side="right")
-        tk.Label(
-            block,
-            text=row.reset_text,
-            bg=self.palette.panel,
-            fg=self.palette.muted,
-            anchor="w",
-            font=(self.font_family, 8),
-        ).pack(fill="x", pady=(2, 0))
+        ).pack(side="right", padx=(0, 10))
 
         bar = tk.Canvas(
             block,
             width=310,
-            height=8,
+            height=7,
             bg=self.palette.panel,
             highlightthickness=0,
         )
-        bar.pack(fill="x", pady=(7, 0))
+        bar.pack(fill="x", pady=(5, 0))
         self._bind_bar_resize(bar, row, fallback_color)
 
     def _bind_bar_resize(
