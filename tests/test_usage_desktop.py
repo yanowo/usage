@@ -55,6 +55,28 @@ def test_window_setting_helpers() -> None:
         430,
         usage_desktop.MIN_HEIGHT,
     )
+    assert usage_desktop.resize_dimensions(
+        260,
+        130,
+        -80,
+        -40,
+        min_width=usage_desktop.MINI_WIDTH,
+        min_height=usage_desktop.MINI_HEIGHT,
+    ) == (usage_desktop.MINI_WIDTH, usage_desktop.MINI_HEIGHT)
+    assert usage_desktop.top_left_resize_geometry(80, 90, 400, 500, -30, 40) == (
+        430,
+        460,
+        50,
+        130,
+    )
+    assert usage_desktop.top_left_resize_geometry(80, 90, 400, 500, 300, 300) == (
+        usage_desktop.MIN_WIDTH,
+        usage_desktop.MIN_HEIGHT,
+        150,
+        170,
+    )
+    assert usage_desktop.mini_product("all") == "codex"
+    assert usage_desktop.mini_product("claude") == "claude"
     assert usage_desktop.topmost_label(True) == "Pinned"
     assert usage_desktop.topmost_label(False) == "Pin"
 

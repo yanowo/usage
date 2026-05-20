@@ -165,9 +165,10 @@ Windows 沒有 macOS menu bar，所以預設會啟動一個置頂、可拖曳的
 
 Desktop 小工具支援：
 
-- 右下角拖曳調整視窗大小
+- 左上角拖曳調整視窗大小，避免右下角被其他桌面元件遮住
 - `Alpha` 滑桿調整透明度
 - `Pinned / Pin` 切換是否永遠置頂
+- `Mini` 模式縮成單一 `Codex` 或 `Claude` 用量與更新時間，降低遮蔽桌面的面積
 - `Style` 在 `Classic / Taiwan / Matrix / ECG / Minimal / Sketch` 之間切換，對齊 macOS 版原本的小工具 template
 
 ```powershell

@@ -22,6 +22,8 @@ from usage_state import (
 PRODUCTS = ("all", "claude", "codex")
 MIN_WIDTH = 330
 MIN_HEIGHT = 420
+MINI_WIDTH = 250
+MINI_HEIGHT = 122
 DEFAULT_OPACITY = 1.0
 MIN_OPACITY = 0.55
 
@@ -227,11 +229,37 @@ def resize_dimensions(
     start_height: int,
     delta_x: int,
     delta_y: int,
+    *,
+    min_width: int = MIN_WIDTH,
+    min_height: int = MIN_HEIGHT,
 ) -> tuple[int, int]:
     return (
-        max(MIN_WIDTH, start_width + delta_x),
-        max(MIN_HEIGHT, start_height + delta_y),
+        max(min_width, start_width + delta_x),
+        max(min_height, start_height + delta_y),
     )
+
+
+def top_left_resize_geometry(
+    start_x: int,
+    start_y: int,
+    start_width: int,
+    start_height: int,
+    delta_x: int,
+    delta_y: int,
+    *,
+    min_width: int = MIN_WIDTH,
+    min_height: int = MIN_HEIGHT,
+) -> tuple[int, int, int, int]:
+    width = max(min_width, start_width - delta_x)
+    height = max(min_height, start_height - delta_y)
+    applied_delta_x = start_width - width
+    applied_delta_y = start_height - height
+    return width, height, start_x + applied_delta_x, start_y + applied_delta_y
+
+
+def mini_product(selected: str) -> str:
+    normalized = normalize_product(selected)
+    return normalized if normalized in ("claude", "codex") else "codex"
 
 
 def topmost_label(enabled: bool) -> str:
@@ -266,9 +294,11 @@ class DesktopUsageApp:
         self.latest_state = empty_state()
         self.refreshing = False
         self.topmost_enabled = True
+        self.mini_mode = False
         self.opacity = DEFAULT_OPACITY
+        self.full_geometry: str | None = None
         self.drag_start: tuple[int, int] | None = None
-        self.resize_start: tuple[int, int, int, int] | None = None
+        self.resize_start: tuple[int, int, int, int, int, int] | None = None
 
         self.root.title("usage")
         self.root.geometry("390x540+80+80")
@@ -281,11 +311,16 @@ class DesktopUsageApp:
         self.title_var = tk.StringVar(value="usage")
         self.status_var = tk.StringVar(value="Loading")
         self.updated_var = tk.StringVar(value="--")
+        self.updated_time_var = tk.StringVar(value="updated --")
         self.opacity_var = tk.IntVar(value=round(self.opacity * 100))
 
         self.shell: tk.Frame | None = None
         self.cards: tk.Frame | None = None
+        self.all_button: tk.Button | None = None
+        self.claude_button: tk.Button | None = None
+        self.codex_button: tk.Button | None = None
         self.topmost_button: tk.Button | None = None
+        self.mini_button: tk.Button | None = None
         self.template_button: tk.Button | None = None
         self._build_ui()
 
@@ -297,14 +332,25 @@ class DesktopUsageApp:
     def _build_ui(self) -> None:
         if self.shell is not None:
             self.shell.destroy()
+        self.all_button = None
+        self.claude_button = None
+        self.codex_button = None
+        self.topmost_button = None
+        self.mini_button = None
+        self.template_button = None
         self.root.configure(bg=self.palette.bg)
-        self.shell = tk.Frame(self.root, bg=self.palette.bg, padx=12, pady=12)
+        padding = 8 if self.mini_mode else 12
+        self.shell = tk.Frame(self.root, bg=self.palette.bg, padx=padding, pady=padding)
         self.shell.pack(fill="both", expand=True)
 
-        self._build_header()
+        if self.mini_mode:
+            self._build_mini_header()
+        else:
+            self._build_header()
         self.cards = tk.Frame(self.shell, bg=self.palette.bg)
-        self.cards.pack(fill="both", expand=True, pady=(10, 0))
-        self._build_footer()
+        self.cards.pack(fill="both", expand=True, pady=(8 if self.mini_mode else 10, 0))
+        if not self.mini_mode:
+            self._build_footer()
         self._render()
 
     def _button(
@@ -342,6 +388,9 @@ class DesktopUsageApp:
         header.bind("<ButtonPress-1>", self._start_drag)
         header.bind("<B1-Motion>", self._drag)
 
+        grip = self._resize_grip(header)
+        grip.pack(side="left", padx=(0, 8), pady=(4, 0))
+
         title = tk.Label(
             header,
             textvariable=self.title_var,
@@ -374,6 +423,14 @@ class DesktopUsageApp:
             width=7,
         )
         self.topmost_button.pack(side="left", padx=(0, 6))
+
+        self.mini_button = self._button(
+            window_controls,
+            "Mini",
+            self._toggle_mini,
+            width=6,
+        )
+        self.mini_button.pack(side="left", padx=(0, 6))
 
         self.template_button = self._button(
             window_controls,
@@ -410,6 +467,37 @@ class DesktopUsageApp:
         )
         opacity_scale.pack(side="left", fill="x", expand=True, padx=(5, 0))
 
+    def _build_mini_header(self) -> None:
+        if self.shell is None:
+            return
+        header = tk.Frame(self.shell, bg=self.palette.bg)
+        header.pack(fill="x")
+        header.bind("<ButtonPress-1>", self._start_drag)
+        header.bind("<B1-Motion>", self._drag)
+
+        grip = self._resize_grip(header)
+        grip.pack(side="left", padx=(0, 6), pady=(3, 0))
+
+        self._button(header, self._mini_product_label(), self._cycle_mini_product, width=8).pack(
+            side="left",
+            padx=(0, 6),
+        )
+        self._button(header, "Full", self._toggle_mini, width=5).pack(side="right", padx=(6, 0))
+        self._button(header, "x", self.root.destroy, width=2).pack(side="right")
+
+    def _resize_grip(self, parent: tk.Misc) -> tk.Frame:
+        grip = tk.Frame(
+            parent,
+            bg=self.palette.line,
+            width=15,
+            height=15,
+            cursor="top_left_corner",
+        )
+        grip.bind("<ButtonPress-1>", self._start_resize)
+        grip.bind("<B1-Motion>", self._resize)
+        grip.bind("<ButtonRelease-1>", self._end_resize)
+        return grip
+
     def _build_footer(self) -> None:
         if self.shell is None:
             return
@@ -442,18 +530,6 @@ class DesktopUsageApp:
             font=(self.font_family, 8),
         ).pack(side="left", fill="x", expand=True)
 
-        grip = tk.Frame(
-            footer_bottom,
-            bg=self.palette.line,
-            width=15,
-            height=15,
-            cursor="bottom_right_corner",
-        )
-        grip.pack(side="right", padx=(4, 8))
-        grip.bind("<ButtonPress-1>", self._start_resize)
-        grip.bind("<B1-Motion>", self._resize)
-        grip.bind("<ButtonRelease-1>", self._end_resize)
-
     def _start_drag(self, event: Any) -> None:
         self.drag_start = (int(event.x_root), int(event.y_root))
 
@@ -472,6 +548,8 @@ class DesktopUsageApp:
         self.resize_start = (
             int(event.x_root),
             int(event.y_root),
+            self.root.winfo_x(),
+            self.root.winfo_y(),
             self.root.winfo_width(),
             self.root.winfo_height(),
         )
@@ -479,20 +557,35 @@ class DesktopUsageApp:
     def _resize(self, event: Any) -> None:
         if self.resize_start is None:
             return
-        start_x, start_y, start_width, start_height = self.resize_start
-        width, height = resize_dimensions(
+        min_width, min_height = self._minimum_size()
+        start_x, start_y, start_window_x, start_window_y, start_width, start_height = (
+            self.resize_start
+        )
+        width, height, x, y = top_left_resize_geometry(
+            start_window_x,
+            start_window_y,
             start_width,
             start_height,
             int(event.x_root) - start_x,
             int(event.y_root) - start_y,
+            min_width=min_width,
+            min_height=min_height,
         )
-        self.root.geometry(f"{width}x{height}+{self.root.winfo_x()}+{self.root.winfo_y()}")
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
 
     def _end_resize(self, _event: Any) -> None:
         self.resize_start = None
 
+    def _minimum_size(self) -> tuple[int, int]:
+        return (
+            MINI_WIDTH if self.mini_mode else MIN_WIDTH,
+            MINI_HEIGHT if self.mini_mode else MIN_HEIGHT,
+        )
+
     def _set_product(self, product: str) -> None:
         self.selected_product = normalize_product(product)
+        if self.mini_mode:
+            self.selected_product = mini_product(self.selected_product)
         self._render()
 
     def _product_command(self, product: str) -> Callable[[], None]:
@@ -500,6 +593,29 @@ class DesktopUsageApp:
             self._set_product(product)
 
         return command
+
+    def _mini_product_label(self) -> str:
+        return "Claude" if mini_product(self.selected_product) == "claude" else "Codex"
+
+    def _cycle_mini_product(self) -> None:
+        current = mini_product(self.selected_product)
+        self.selected_product = "claude" if current == "codex" else "codex"
+        self._build_ui()
+
+    def _toggle_mini(self) -> None:
+        self.mini_mode = not self.mini_mode
+        if self.mini_mode:
+            self.full_geometry = self.root.geometry()
+            self.selected_product = mini_product(self.selected_product)
+            self.root.minsize(MINI_WIDTH, MINI_HEIGHT)
+            self.root.geometry(
+                f"{MINI_WIDTH}x{MINI_HEIGHT}+{self.root.winfo_x()}+{self.root.winfo_y()}"
+            )
+        else:
+            self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
+            if self.full_geometry is not None:
+                self.root.geometry(self.full_geometry)
+        self._build_ui()
 
     def _toggle_topmost(self) -> None:
         self.topmost_enabled = not self.topmost_enabled
@@ -551,6 +667,7 @@ class DesktopUsageApp:
             return
         self.latest_state = result.state
         updated = datetime.fromtimestamp(result.fetched_at).strftime("%H:%M:%S")
+        self.updated_time_var.set(f"updated {updated}")
         self.updated_var.set(f"{clean_label(result.state.rate_text)} · {result.state.today_text}")
         self.status_var.set(f"{clean_label(result.state.status_text)} · updated {updated}")
         self._render()
@@ -559,10 +676,15 @@ class DesktopUsageApp:
     def _render(self) -> None:
         if self.cards is None:
             return
-        self._style_product_buttons()
+        if not self.mini_mode:
+            self._style_product_buttons()
         self._style_window_buttons()
         for child in self.cards.winfo_children():
             child.destroy()
+        if self.mini_mode:
+            view = product_views(self.latest_state)[mini_product(self.selected_product)]
+            self._build_mini_card(view).pack(fill="both", expand=True)
+            return
         views = selected_product_views(self.latest_state, self.selected_product)
         for index, view in enumerate(views):
             self._build_card(view).pack(fill="x", pady=(0, 10 if index < len(views) - 1 else 0))
@@ -581,13 +703,15 @@ class DesktopUsageApp:
             )
 
     def _style_window_buttons(self) -> None:
-        for button in (self.topmost_button, self.template_button):
+        for button in (self.topmost_button, self.mini_button, self.template_button):
             if button is None:
                 continue
             topmost_active = button is self.topmost_button and self.topmost_enabled
+            mini_active = button is self.mini_button and self.mini_mode
+            active = topmost_active or mini_active
             button.configure(
-                bg=self.palette.active if topmost_active else self.palette.panel,
-                fg=self.palette.active_text if topmost_active else self.palette.text,
+                bg=self.palette.active if active else self.palette.panel,
+                fg=self.palette.active_text if active else self.palette.text,
                 activebackground=self.palette.panel_alt,
                 activeforeground=self.palette.text,
             )
@@ -626,6 +750,56 @@ class DesktopUsageApp:
 
         self._build_quota_row(frame, product.session, product.accent)
         self._build_quota_row(frame, product.weekly, product.accent)
+        return frame
+
+    def _build_mini_card(self, product: ProductView) -> tk.Frame:
+        if self.cards is None:
+            raise RuntimeError("cards frame has not been built")
+        frame = tk.Frame(
+            self.cards,
+            bg=self.palette.panel,
+            padx=10,
+            pady=9,
+            highlightthickness=1,
+            highlightbackground=self.palette.line,
+        )
+        top = tk.Frame(frame, bg=self.palette.panel)
+        top.pack(fill="x")
+        tk.Label(
+            top,
+            text=product.name,
+            bg=self.palette.panel,
+            fg=self.palette.text,
+            anchor="w",
+            font=(self.font_family, 10, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            top,
+            text=product.session.percent_text,
+            bg=self.palette.panel,
+            fg=product.accent,
+            anchor="e",
+            font=(self.font_family, 12, "bold"),
+        ).pack(side="right")
+
+        bar = tk.Canvas(
+            frame,
+            width=210,
+            height=6,
+            bg=self.palette.panel,
+            highlightthickness=0,
+        )
+        bar.pack(fill="x", pady=(7, 4))
+        self._bind_bar_resize(bar, product.session, product.accent)
+
+        tk.Label(
+            frame,
+            textvariable=self.updated_time_var,
+            bg=self.palette.panel,
+            fg=self.palette.muted,
+            anchor="w",
+            font=(self.font_family, 8),
+        ).pack(fill="x")
         return frame
 
     def _build_quota_row(
@@ -684,7 +858,7 @@ class DesktopUsageApp:
         fallback_color: str,
     ) -> None:
         canvas.delete("all")
-        height = 8
+        height = max(1, int(canvas.winfo_height()))
         canvas.create_rectangle(0, 0, width, height, fill=self.palette.track, outline="")
         fill_width = max(0, int(width * progress_fraction(row)))
         if fill_width <= 0:

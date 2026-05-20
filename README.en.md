@@ -163,9 +163,10 @@ Windows does not have the macOS menu bar API, so usage starts a small always-on-
 
 The desktop widget supports:
 
-- dragging the lower-right grip to resize the window
+- dragging the upper-left grip to resize the window, so the control is less likely to be covered by other desktop widgets
 - the `Alpha` slider for opacity
 - `Pinned / Pin` to toggle always-on-top
+- `Mini` mode, which shrinks the widget to one `Codex` or `Claude` usage readout plus the last update time
 - `Style` switching between `Classic / Taiwan / Matrix / ECG / Minimal / Sketch`, aligned with the macOS widget templates
 
 ```powershell
