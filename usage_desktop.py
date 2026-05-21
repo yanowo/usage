@@ -462,9 +462,11 @@ class DesktopUsageApp:
         self.strip_opacity_caption: tk.Label | None = None
         self.strip_opacity_label: tk.Label | None = None
         self.strip_opacity_scale: tk.Scale | None = None
+        self.strip_topmost_button: tk.Button | None = None
         self.strip_buttons: list[tk.Button] = []
         self.strip_custom_position: tuple[int, int] | None = None
         self.strip_drag_start: tuple[int, int, int, int] | None = None
+        self.syncing_opacity_var = False
         self.opacity = DEFAULT_OPACITY
         self.full_geometry: str | None = None
         self.last_codex_mtime = codex_loader.latest_usage_source_mtime()
@@ -802,9 +804,12 @@ class DesktopUsageApp:
     def _toggle_topmost(self) -> None:
         self.topmost_enabled = not self.topmost_enabled
         self.root.attributes("-topmost", self.topmost_enabled)
+        if self.strip_window is not None and self.strip_window.winfo_exists():
+            self.strip_window.attributes("-topmost", self.topmost_enabled)
         if self.topmost_button is not None:
             self.topmost_button.configure(text=topmost_label(self.topmost_enabled))
         self._style_window_buttons()
+        self._style_strip_buttons()
 
     def _minimize_to_tray(self) -> None:
         self._ensure_tray_icon()
@@ -887,9 +892,10 @@ class DesktopUsageApp:
     def _show_status_strip(self) -> None:
         if self.strip_window is None or not self.strip_window.winfo_exists():
             self.strip_buttons = []
+            self.strip_topmost_button = None
             window = tk.Toplevel(self.root)
             window.overrideredirect(True)
-            window.attributes("-topmost", True)
+            window.attributes("-topmost", self.topmost_enabled)
             window.attributes("-alpha", self.opacity)
             with suppress(tk.TclError):
                 window.attributes("-toolwindow", True)
@@ -970,6 +976,13 @@ class DesktopUsageApp:
                 side="left",
                 padx=(0, 4),
             )
+            self.strip_topmost_button = self._strip_button(
+                header,
+                topmost_label(self.topmost_enabled),
+                self._toggle_topmost,
+                width=7,
+            )
+            self.strip_topmost_button.pack(side="left", padx=(0, 4))
             self._strip_button(header, "Open", self._restore_from_tray, width=5).pack(
                 side="left",
                 padx=(0, 4),
@@ -1020,6 +1033,19 @@ class DesktopUsageApp:
         self.strip_buttons.append(button)
         return button
 
+    def _style_strip_buttons(self) -> None:
+        if self.strip_topmost_button is not None:
+            self.strip_topmost_button.configure(text=topmost_label(self.topmost_enabled))
+        for button in self.strip_buttons:
+            active = button is self.strip_topmost_button and self.topmost_enabled
+            button.configure(
+                bg=self.palette.active if active else self.palette.panel_alt,
+                fg=self.palette.active_text if active else self.palette.text,
+                activebackground=self.palette.active,
+                activeforeground=self.palette.active_text,
+                font=(self.font_family, 7, "bold"),
+            )
+
     def _bind_strip_drag(self, widget: tk.Widget) -> None:
         widget.bind("<ButtonPress-1>", self._start_strip_drag)
         widget.bind("<B1-Motion>", self._drag_strip)
@@ -1065,10 +1091,12 @@ class DesktopUsageApp:
             self.strip_opacity_caption = None
             self.strip_opacity_label = None
             self.strip_opacity_scale = None
+            self.strip_topmost_button = None
             self.strip_buttons = []
             return
         self.strip_window.configure(bg=self.palette.bg)
         self.strip_window.attributes("-alpha", self.opacity)
+        self.strip_window.attributes("-topmost", self.topmost_enabled)
         if self.strip_frame is not None:
             self.strip_frame.configure(
                 bg=self.palette.panel,
@@ -1102,14 +1130,7 @@ class DesktopUsageApp:
                 troughcolor=self.palette.track,
                 activebackground=self.palette.active,
             )
-        for button in self.strip_buttons:
-            button.configure(
-                bg=self.palette.panel_alt,
-                fg=self.palette.text,
-                activebackground=self.palette.active,
-                activeforeground=self.palette.active_text,
-                font=(self.font_family, 7, "bold"),
-            )
+        self._style_strip_buttons()
         self._rebuild_strip_rows()
         self.strip_window.update_idletasks()
         width, height = strip_dimensions(
@@ -1234,6 +1255,7 @@ class DesktopUsageApp:
             self.strip_opacity_caption = None
             self.strip_opacity_label = None
             self.strip_opacity_scale = None
+            self.strip_topmost_button = None
             self.strip_buttons = []
         self.root.destroy()
 
@@ -1253,13 +1275,23 @@ class DesktopUsageApp:
         self._update_status_strip()
 
     def _set_opacity_from_scale(self, value: str) -> None:
-        self._set_opacity(float(value) / 100.0)
+        if self.syncing_opacity_var:
+            return
+        self._set_opacity(float(value) / 100.0, sync_var=False)
 
-    def _set_opacity(self, value: float) -> None:
+    def _set_opacity(self, value: float, *, sync_var: bool = True) -> None:
         self.opacity = clamp_opacity(value)
-        self.opacity_var.set(round(self.opacity * 100))
+        if sync_var:
+            self.syncing_opacity_var = True
+            try:
+                self.opacity_var.set(round(self.opacity * 100))
+            finally:
+                self.syncing_opacity_var = False
         self.root.attributes("-alpha", self.opacity)
-        self._update_status_strip()
+        if self.strip_window is not None and self.strip_window.winfo_exists():
+            self.strip_window.attributes("-alpha", self.opacity)
+        if self.strip_opacity_label is not None:
+            self.strip_opacity_label.configure(text=f"{round(self.opacity * 100)}%")
 
     def refresh(self) -> None:
         if self.refreshing:
