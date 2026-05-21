@@ -8,6 +8,7 @@ import shlex
 import shutil
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -228,7 +229,7 @@ def _load_app_server_rate_limits() -> CodexRateLimits | None:
 def _codex_command() -> list[str] | None:
     configured = os.environ.get(CODEX_COMMAND_ENV, "").strip()
     if configured:
-        return shlex.split(configured, posix=os.name != "nt")
+        return _split_configured_command(configured)
 
     path = shutil.which("codex")
     if path:
@@ -242,6 +243,26 @@ def _codex_command() -> list[str] | None:
     return None
 
 
+def _split_configured_command(command: str) -> list[str]:
+    # Preserve Windows backslashes even when tests or CI run on POSIX systems.
+    if _starts_with_windows_path(command):
+        return [_strip_wrapping_quotes(part) for part in shlex.split(command, posix=False)]
+    return shlex.split(command)
+
+
+def _starts_with_windows_path(command: str) -> bool:
+    value = command.lstrip()
+    if value[:1] in ("'", '"'):
+        value = value[1:]
+    return (len(value) >= 3 and value[1:3] == ":\\") or value.startswith("\\\\")
+
+
+def _strip_wrapping_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
 def _codex_executable_candidates(home: Path | None = None) -> list[Path]:
     root = home or Path.home()
     candidates: list[Path] = []
@@ -249,13 +270,24 @@ def _codex_executable_candidates(home: Path | None = None) -> list[Path]:
         root / ".vscode" / "extensions",
         root / ".vscode-insiders" / "extensions",
     ):
-        candidates.extend(
-            extensions_dir.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"),
-        )
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        candidates.append(Path(appdata) / "npm" / "codex.cmd")
+        for pattern in _codex_extension_patterns():
+            candidates.extend(extensions_dir.glob(pattern))
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            candidates.append(Path(appdata) / "npm" / "codex.cmd")
     return candidates
+
+
+def _codex_extension_patterns() -> tuple[str, ...]:
+    if sys.platform == "win32":
+        return ("openai.chatgpt-*/bin/windows-x86_64/codex.exe",)
+    if sys.platform == "darwin":
+        return (
+            "openai.chatgpt-*/bin/macos-*/codex",
+            "openai.chatgpt-*/bin/darwin-*/codex",
+        )
+    return ("openai.chatgpt-*/bin/linux-*/codex",)
 
 
 def _app_server_initialize_request() -> dict[str, Any]:

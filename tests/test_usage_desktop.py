@@ -109,14 +109,6 @@ def test_tray_labels_summarize_usage() -> None:
     assert usage_desktop.tray_tooltip(_state()) == (
         "usage | Claude 5H 42% W -- | Codex 5H 9% W --"
     )
-    assert usage_desktop.tray_summary(_state()) == (
-        "Claude: 5H 42% (1h 0m), Weekly -- (--)\n"
-        "Codex: 5H 9% (4h 0m), Weekly -- (--)"
-    )
-    assert usage_desktop.tray_strip_text(_state()) == (
-        "Claude 5H 42% R 1h 0m | W -- R --\n"
-        "Codex  5H 9% R 4h 0m | W -- R --"
-    )
 
 
 def test_strip_position_uses_work_area() -> None:

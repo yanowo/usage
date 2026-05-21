@@ -255,6 +255,34 @@ def test_codex_command_uses_configured_command(monkeypatch: pytest.MonkeyPatch) 
     assert codex_loader._codex_command() == ["C:\\Tools\\codex.exe"]
 
 
+def test_codex_command_preserves_quoted_windows_path_with_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        codex_loader.CODEX_COMMAND_ENV,
+        '"C:\\Program Files\\Codex\\codex.exe" --profile work',
+    )
+
+    assert codex_loader._codex_command() == [
+        "C:\\Program Files\\Codex\\codex.exe",
+        "--profile",
+        "work",
+    ]
+
+
+def test_codex_command_splits_posix_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        codex_loader.CODEX_COMMAND_ENV,
+        '"/usr/local/bin/codex" --profile work',
+    )
+
+    assert codex_loader._codex_command() == [
+        "/usr/local/bin/codex",
+        "--profile",
+        "work",
+    ]
+
+
 def test_codex_command_finds_vscode_extension_when_path_missing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -262,6 +290,7 @@ def test_codex_command_finds_vscode_extension_when_path_missing(
     monkeypatch.delenv(codex_loader.CODEX_COMMAND_ENV, raising=False)
     monkeypatch.setattr("codex_loader.shutil.which", lambda _command: None)
     monkeypatch.setattr("codex_loader.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("codex_loader.sys.platform", "win32")
     older = (
         tmp_path
         / ".vscode"
@@ -290,6 +319,40 @@ def test_codex_command_finds_vscode_extension_when_path_missing(
     os.utime(newer, (newer_ts, newer_ts))
 
     assert codex_loader._codex_command() == [str(newer)]
+
+
+def test_codex_command_uses_macos_vscode_extension_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv(codex_loader.CODEX_COMMAND_ENV, raising=False)
+    monkeypatch.setattr("codex_loader.shutil.which", lambda _command: None)
+    monkeypatch.setattr("codex_loader.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("codex_loader.sys.platform", "darwin")
+    windows_candidate = (
+        tmp_path
+        / ".vscode"
+        / "extensions"
+        / "openai.chatgpt-1"
+        / "bin"
+        / "windows-x86_64"
+        / "codex.exe"
+    )
+    mac_candidate = (
+        tmp_path
+        / ".vscode"
+        / "extensions"
+        / "openai.chatgpt-1"
+        / "bin"
+        / "macos-arm64"
+        / "codex"
+    )
+    windows_candidate.parent.mkdir(parents=True, exist_ok=True)
+    mac_candidate.parent.mkdir(parents=True, exist_ok=True)
+    windows_candidate.write_text("", encoding="utf-8")
+    mac_candidate.write_text("", encoding="utf-8")
+
+    assert codex_loader._codex_command() == [str(mac_candidate)]
 
 
 def test_rate_limits_from_app_server_response_supports_camel_case_windows() -> None:

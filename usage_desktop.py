@@ -319,35 +319,6 @@ def tray_tooltip(state: PopoverState) -> str:
     )
 
 
-def tray_summary(state: PopoverState) -> str:
-    return "\n".join(
-        (
-            "Claude: "
-            f"5H {brief_percent(state.claude_session)} ({brief_reset(state.claude_session)}), "
-            f"Weekly {brief_percent(state.claude_weekly)} "
-            f"({brief_reset(state.claude_weekly)})",
-            "Codex: "
-            f"5H {brief_percent(state.codex_session)} ({brief_reset(state.codex_session)}), "
-            f"Weekly {brief_percent(state.codex_weekly)} ({brief_reset(state.codex_weekly)})",
-        )
-    )
-
-
-def tray_strip_lines(state: PopoverState) -> tuple[str, str]:
-    return (
-        "Claude "
-        f"5H {brief_percent(state.claude_session)} R {brief_reset(state.claude_session)} | "
-        f"W {brief_percent(state.claude_weekly)} R {brief_reset(state.claude_weekly)}",
-        "Codex  "
-        f"5H {brief_percent(state.codex_session)} R {brief_reset(state.codex_session)} | "
-        f"W {brief_percent(state.codex_weekly)} R {brief_reset(state.codex_weekly)}",
-    )
-
-
-def tray_strip_text(state: PopoverState) -> str:
-    return "\n".join(tray_strip_lines(state))
-
-
 def strip_dimensions(
     screen_width: int,
     requested_width: int,
