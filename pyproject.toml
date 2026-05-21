@@ -7,6 +7,8 @@ requires-python = ">=3.13"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
+    "pillow>=10.0; platform_system == 'Windows'",
+    "pystray>=0.19.5; platform_system == 'Windows'",
     "pyobjc-framework-Cocoa>=11.0; platform_system == 'Darwin'",
     "rich>=14.0.0,<15.0.0",
 ]

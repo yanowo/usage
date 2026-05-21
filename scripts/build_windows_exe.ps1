@@ -25,6 +25,10 @@ if ($null -eq $Uv) {
     --onefile `
     --windowed `
     --name $Name `
+    --hidden-import "pystray" `
+    --hidden-import "pystray._win32" `
+    --hidden-import "PIL.Image" `
+    --hidden-import "PIL.ImageDraw" `
     --add-data "assets;assets" `
     --add-data "usage_statusline.py;." `
     main.py

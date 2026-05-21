@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import threading
 import time
 import tkinter as tk
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
@@ -32,6 +34,19 @@ MINI_HEIGHT = 170
 DEFAULT_OPACITY = 1.0
 MIN_OPACITY = 0.55
 CODEX_POLL_SECONDS = 5
+STRIP_MIN_WIDTH = 300
+STRIP_MIN_HEIGHT = 82
+STRIP_MARGIN = 8
+STRIP_BAR_WIDTH = 44
+STRIP_BAR_HEIGHT = 5
+
+
+@dataclass(frozen=True, slots=True)
+class WorkArea:
+    left: int
+    top: int
+    right: int
+    bottom: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,6 +297,140 @@ def clean_label(text: str) -> str:
     return text.replace("狀態：", "").replace("速率：", "").replace("今日：", "")
 
 
+def brief_percent(row: QuotaRowState) -> str:
+    if not row.available or row.percent is None:
+        return "--"
+    value = row.percent
+    return f"{int(value)}%" if value.is_integer() else f"{value:.1f}%"
+
+
+def brief_reset(row: QuotaRowState) -> str:
+    value = row.reset_text.replace("重置", "").strip()
+    return value or "--"
+
+
+def tray_tooltip(state: PopoverState) -> str:
+    return (
+        "usage | "
+        f"Claude 5H {brief_percent(state.claude_session)} "
+        f"W {brief_percent(state.claude_weekly)} | "
+        f"Codex 5H {brief_percent(state.codex_session)} "
+        f"W {brief_percent(state.codex_weekly)}"
+    )
+
+
+def tray_summary(state: PopoverState) -> str:
+    return "\n".join(
+        (
+            "Claude: "
+            f"5H {brief_percent(state.claude_session)} ({brief_reset(state.claude_session)}), "
+            f"Weekly {brief_percent(state.claude_weekly)} "
+            f"({brief_reset(state.claude_weekly)})",
+            "Codex: "
+            f"5H {brief_percent(state.codex_session)} ({brief_reset(state.codex_session)}), "
+            f"Weekly {brief_percent(state.codex_weekly)} ({brief_reset(state.codex_weekly)})",
+        )
+    )
+
+
+def tray_strip_lines(state: PopoverState) -> tuple[str, str]:
+    return (
+        "Claude "
+        f"5H {brief_percent(state.claude_session)} R {brief_reset(state.claude_session)} | "
+        f"W {brief_percent(state.claude_weekly)} R {brief_reset(state.claude_weekly)}",
+        "Codex  "
+        f"5H {brief_percent(state.codex_session)} R {brief_reset(state.codex_session)} | "
+        f"W {brief_percent(state.codex_weekly)} R {brief_reset(state.codex_weekly)}",
+    )
+
+
+def tray_strip_text(state: PopoverState) -> str:
+    return "\n".join(tray_strip_lines(state))
+
+
+def strip_dimensions(
+    screen_width: int,
+    requested_width: int,
+    requested_height: int,
+    *,
+    margin: int = STRIP_MARGIN,
+) -> tuple[int, int]:
+    max_width = max(STRIP_MIN_WIDTH, screen_width - margin * 2)
+    return (
+        min(max(STRIP_MIN_WIDTH, requested_width), max_width),
+        max(STRIP_MIN_HEIGHT, requested_height),
+    )
+
+
+def strip_position(
+    screen_width: int,
+    screen_height: int,
+    width: int,
+    height: int,
+    work_area: WorkArea | None,
+    *,
+    margin: int = STRIP_MARGIN,
+) -> tuple[int, int]:
+    left = work_area.left if work_area is not None else 0
+    top = work_area.top if work_area is not None else 0
+    right = work_area.right if work_area is not None else screen_width
+    bottom = work_area.bottom if work_area is not None else screen_height
+    return (
+        max(left + margin, right - width - margin),
+        max(top + margin, bottom - height - margin),
+    )
+
+
+def clamp_strip_position(
+    x: int,
+    y: int,
+    screen_width: int,
+    screen_height: int,
+    width: int,
+    height: int,
+    work_area: WorkArea | None,
+) -> tuple[int, int]:
+    left = work_area.left if work_area is not None else 0
+    top = work_area.top if work_area is not None else 0
+    right = work_area.right if work_area is not None else screen_width
+    bottom = work_area.bottom if work_area is not None else screen_height
+    return (
+        min(max(left, x), max(left, right - width)),
+        min(max(top, y), max(top, bottom - height)),
+    )
+
+
+def load_tray_modules() -> tuple[Any, Any, Any] | None:
+    try:
+        pystray_module = importlib.import_module("pystray")
+        image_module = importlib.import_module("PIL.Image")
+        image_draw_module = importlib.import_module("PIL.ImageDraw")
+    except ImportError:
+        return None
+    return pystray_module, image_module, image_draw_module
+
+
+def windows_work_area() -> WorkArea | None:
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return None
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return None
+    rect = wintypes.RECT()
+    spi_get_work_area = 0x0030
+    if not windll.user32.SystemParametersInfoW(
+        spi_get_work_area,
+        0,
+        ctypes.byref(rect),
+        0,
+    ):
+        return None
+    return WorkArea(rect.left, rect.top, rect.right, rect.bottom)
+
+
 def run_app(*, mock: bool = False, interval: int = 60) -> None:
     root = tk.Tk()
     DesktopUsageApp(root, mock=mock, interval=interval).run()
@@ -302,6 +451,20 @@ class DesktopUsageApp:
         self.codex_refreshing = False
         self.topmost_enabled = True
         self.mini_mode = False
+        self.tray_hidden = False
+        self.tray_modules: tuple[Any, Any, Any] | None = None
+        self.tray_icon: Any | None = None
+        self.strip_window: tk.Toplevel | None = None
+        self.strip_frame: tk.Frame | None = None
+        self.strip_header: tk.Frame | None = None
+        self.strip_rows_frame: tk.Frame | None = None
+        self.strip_title_label: tk.Label | None = None
+        self.strip_opacity_caption: tk.Label | None = None
+        self.strip_opacity_label: tk.Label | None = None
+        self.strip_opacity_scale: tk.Scale | None = None
+        self.strip_buttons: list[tk.Button] = []
+        self.strip_custom_position: tuple[int, int] | None = None
+        self.strip_drag_start: tuple[int, int, int, int] | None = None
         self.opacity = DEFAULT_OPACITY
         self.full_geometry: str | None = None
         self.last_codex_mtime = codex_loader.latest_usage_source_mtime()
@@ -316,6 +479,7 @@ class DesktopUsageApp:
         self.root.attributes("-topmost", self.topmost_enabled)
         self.root.attributes("-alpha", self.opacity)
         self.root.overrideredirect(True)
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
 
         self.title_var = tk.StringVar(value="usage")
         self.status_var = tk.StringVar(value="Loading")
@@ -412,7 +576,11 @@ class DesktopUsageApp:
         title.bind("<ButtonPress-1>", self._start_drag)
         title.bind("<B1-Motion>", self._drag)
 
-        self._button(header, "x", self.root.destroy, width=2).pack(side="right")
+        self._button(header, "x", self._close, width=2).pack(side="right")
+        self._button(header, "_", self._minimize_to_tray, width=2).pack(
+            side="right",
+            padx=(0, 4),
+        )
 
         product_controls = tk.Frame(self.shell, bg=self.palette.bg)
         product_controls.pack(fill="x", pady=(10, 0))
@@ -492,8 +660,12 @@ class DesktopUsageApp:
             side="left",
             padx=(0, 6),
         )
+        self._button(header, "x", self._close, width=2).pack(side="right")
+        self._button(header, "_", self._minimize_to_tray, width=2).pack(
+            side="right",
+            padx=(0, 4),
+        )
         self._button(header, "Full", self._toggle_mini, width=5).pack(side="right", padx=(6, 0))
-        self._button(header, "x", self.root.destroy, width=2).pack(side="right")
 
     def _resize_grip(self, parent: tk.Misc) -> tk.Frame:
         grip = tk.Frame(
@@ -634,6 +806,437 @@ class DesktopUsageApp:
             self.topmost_button.configure(text=topmost_label(self.topmost_enabled))
         self._style_window_buttons()
 
+    def _minimize_to_tray(self) -> None:
+        self._ensure_tray_icon()
+        self.tray_hidden = True
+        self._show_status_strip()
+        self._update_tray_details()
+        self.root.withdraw()
+
+    def _ensure_tray_icon(self) -> bool:
+        if self.tray_icon is not None:
+            return True
+        self.tray_modules = self.tray_modules or load_tray_modules()
+        if self.tray_modules is None:
+            return False
+        pystray_module, image_module, image_draw_module = self.tray_modules
+        image = self._create_tray_image(image_module, image_draw_module)
+        menu = pystray_module.Menu(
+            pystray_module.MenuItem("Restore", self._restore_from_tray_action, default=True),
+            pystray_module.MenuItem("Quit", self._quit_from_tray_action),
+        )
+        self.tray_icon = pystray_module.Icon("usage", image, tray_tooltip(self.latest_state), menu)
+        self._run_tray_icon(self.tray_icon)
+        return True
+
+    def _create_tray_image(self, image_module: Any, image_draw_module: Any) -> Any:
+        image = image_module.new("RGBA", (64, 64), (0, 0, 0, 0))
+        draw = image_draw_module.Draw(image)
+        draw.rounded_rectangle(
+            (4, 4, 60, 60),
+            radius=12,
+            fill="#17171b",
+            outline="#f49164",
+            width=3,
+        )
+        draw.rectangle((13, 21, 51, 27), fill="#2d2d33")
+        draw.rectangle(
+            (13, 21, 13 + round(38 * progress_fraction(self.latest_state.claude_session)), 27),
+            fill="#f49164",
+        )
+        draw.rectangle((13, 38, 51, 44), fill="#2d2d33")
+        draw.rectangle(
+            (13, 38, 13 + round(38 * progress_fraction(self.latest_state.codex_session)), 44),
+            fill="#58d6e6",
+        )
+        return image
+
+    def _run_tray_icon(self, icon: Any) -> None:
+        run_detached = getattr(icon, "run_detached", None)
+        if callable(run_detached):
+            run_detached()
+            return
+        thread = threading.Thread(target=icon.run, daemon=True)
+        thread.start()
+
+    def _restore_from_tray_action(self, _icon: Any = None, _item: Any = None) -> None:
+        self.root.after(0, self._restore_from_tray)
+
+    def _quit_from_tray_action(self, _icon: Any = None, _item: Any = None) -> None:
+        self.root.after(0, self._close)
+
+    def _restore_from_tray(self) -> None:
+        self.tray_hidden = False
+        self._hide_status_strip()
+        self.root.deiconify()
+        self.root.overrideredirect(True)
+        self.root.attributes("-alpha", self.opacity)
+        self.root.attributes("-topmost", self.topmost_enabled)
+        if self.topmost_enabled:
+            self.root.lift()
+
+    def _update_tray_details(self) -> None:
+        self._update_status_strip()
+        if self.tray_icon is None:
+            return
+        self.tray_icon.title = tray_tooltip(self.latest_state)
+        if self.tray_modules is not None:
+            _pystray_module, image_module, image_draw_module = self.tray_modules
+            self.tray_icon.icon = self._create_tray_image(image_module, image_draw_module)
+
+    def _show_status_strip(self) -> None:
+        if self.strip_window is None or not self.strip_window.winfo_exists():
+            self.strip_buttons = []
+            window = tk.Toplevel(self.root)
+            window.overrideredirect(True)
+            window.attributes("-topmost", True)
+            window.attributes("-alpha", self.opacity)
+            with suppress(tk.TclError):
+                window.attributes("-toolwindow", True)
+            window.configure(bg=self.palette.bg)
+            window.bind("<Button-3>", lambda _event: self._close())
+
+            frame = tk.Frame(
+                window,
+                bg=self.palette.panel,
+                padx=10,
+                pady=7,
+                highlightthickness=1,
+                highlightbackground=self.palette.line,
+            )
+            frame.pack(fill="both", expand=True)
+            frame.bind("<ButtonPress-1>", self._start_strip_drag)
+            frame.bind("<B1-Motion>", self._drag_strip)
+            frame.bind("<Double-Button-1>", lambda _event: self._restore_from_tray())
+            frame.bind("<Button-3>", lambda _event: self._close())
+
+            header = tk.Frame(frame, bg=self.palette.panel)
+            header.pack(anchor="w", pady=(0, 4))
+            header.bind("<ButtonPress-1>", self._start_strip_drag)
+            header.bind("<B1-Motion>", self._drag_strip)
+            header.bind("<Double-Button-1>", lambda _event: self._restore_from_tray())
+            header.bind("<Button-3>", lambda _event: self._close())
+            self.strip_header = header
+
+            self.strip_title_label = tk.Label(
+                header,
+                text="usage",
+                bg=self.palette.panel,
+                fg=self.palette.text,
+                anchor="w",
+                font=(self.font_family, 8, "bold"),
+            )
+            self.strip_title_label.pack(side="left")
+            self._bind_strip_drag(self.strip_title_label)
+
+            self.strip_opacity_caption = tk.Label(
+                header,
+                text="Alpha",
+                bg=self.palette.panel,
+                fg=self.palette.muted,
+                font=(self.font_family, 7, "bold"),
+            )
+            self.strip_opacity_caption.pack(side="left", padx=(8, 2))
+            self.strip_opacity_scale = tk.Scale(
+                header,
+                from_=55,
+                to=100,
+                orient="horizontal",
+                variable=self.opacity_var,
+                command=self._set_opacity_from_scale,
+                showvalue=False,
+                length=78,
+                sliderlength=12,
+                width=8,
+                bd=0,
+                highlightthickness=0,
+                bg=self.palette.panel,
+                fg=self.palette.text,
+                troughcolor=self.palette.track,
+                activebackground=self.palette.active,
+            )
+            self.strip_opacity_scale.pack(side="left")
+            self.strip_opacity_label = tk.Label(
+                header,
+                text="100%",
+                bg=self.palette.panel,
+                fg=self.palette.muted,
+                anchor="e",
+                font=(self.font_family, 7, "bold"),
+            )
+            self.strip_opacity_label.pack(side="left", padx=(3, 6))
+
+            self._strip_button(header, "Style", self._cycle_template, width=5).pack(
+                side="left",
+                padx=(0, 4),
+            )
+            self._strip_button(header, "Open", self._restore_from_tray, width=5).pack(
+                side="left",
+                padx=(0, 4),
+            )
+            self._strip_button(header, "x", self._close, width=2).pack(side="left")
+
+            self.strip_rows_frame = tk.Frame(
+                frame,
+                bg=self.palette.panel,
+            )
+            self.strip_rows_frame.pack(anchor="w")
+            self.strip_rows_frame.bind("<ButtonPress-1>", self._start_strip_drag)
+            self.strip_rows_frame.bind("<B1-Motion>", self._drag_strip)
+            self.strip_rows_frame.bind(
+                "<Double-Button-1>",
+                lambda _event: self._restore_from_tray(),
+            )
+            self.strip_rows_frame.bind("<Button-3>", lambda _event: self._close())
+            self.strip_window = window
+            self.strip_frame = frame
+        self._update_status_strip()
+        if self.strip_window is not None:
+            self.strip_window.deiconify()
+            self.strip_window.lift()
+
+    def _strip_button(
+        self,
+        parent: tk.Misc,
+        text: str,
+        command: Callable[[], None],
+        *,
+        width: int,
+    ) -> tk.Button:
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            width=width,
+            bg=self.palette.panel_alt,
+            fg=self.palette.text,
+            activebackground=self.palette.active,
+            activeforeground=self.palette.active_text,
+            borderwidth=0,
+            padx=4,
+            pady=1,
+            font=(self.font_family, 7, "bold"),
+        )
+        self.strip_buttons.append(button)
+        return button
+
+    def _bind_strip_drag(self, widget: tk.Widget) -> None:
+        widget.bind("<ButtonPress-1>", self._start_strip_drag)
+        widget.bind("<B1-Motion>", self._drag_strip)
+        widget.bind("<Double-Button-1>", lambda _event: self._restore_from_tray())
+
+    def _start_strip_drag(self, event: Any) -> None:
+        if self.strip_window is None:
+            return
+        self.strip_drag_start = (
+            int(event.x_root),
+            int(event.y_root),
+            self.strip_window.winfo_x(),
+            self.strip_window.winfo_y(),
+        )
+
+    def _drag_strip(self, event: Any) -> None:
+        if self.strip_window is None or self.strip_drag_start is None:
+            return
+        start_x, start_y, start_window_x, start_window_y = self.strip_drag_start
+        width = self.strip_window.winfo_width()
+        height = self.strip_window.winfo_height()
+        x, y = clamp_strip_position(
+            start_window_x + int(event.x_root) - start_x,
+            start_window_y + int(event.y_root) - start_y,
+            self.root.winfo_screenwidth(),
+            self.root.winfo_screenheight(),
+            width,
+            height,
+            windows_work_area(),
+        )
+        self.strip_custom_position = (x, y)
+        self.strip_window.geometry(f"+{x}+{y}")
+
+    def _update_status_strip(self) -> None:
+        if self.strip_window is None or self.strip_rows_frame is None:
+            return
+        if not self.strip_window.winfo_exists():
+            self.strip_window = None
+            self.strip_frame = None
+            self.strip_header = None
+            self.strip_rows_frame = None
+            self.strip_title_label = None
+            self.strip_opacity_caption = None
+            self.strip_opacity_label = None
+            self.strip_opacity_scale = None
+            self.strip_buttons = []
+            return
+        self.strip_window.configure(bg=self.palette.bg)
+        self.strip_window.attributes("-alpha", self.opacity)
+        if self.strip_frame is not None:
+            self.strip_frame.configure(
+                bg=self.palette.panel,
+                highlightbackground=self.palette.line,
+            )
+        if self.strip_header is not None:
+            self.strip_header.configure(bg=self.palette.panel)
+        if self.strip_title_label is not None:
+            self.strip_title_label.configure(
+                bg=self.palette.panel,
+                fg=self.palette.text,
+                font=(self.font_family, 8, "bold"),
+            )
+        if self.strip_opacity_caption is not None:
+            self.strip_opacity_caption.configure(
+                bg=self.palette.panel,
+                fg=self.palette.muted,
+                font=(self.font_family, 7, "bold"),
+            )
+        if self.strip_opacity_label is not None:
+            self.strip_opacity_label.configure(
+                text=f"{round(self.opacity * 100)}%",
+                bg=self.palette.panel,
+                fg=self.palette.muted,
+                font=(self.font_family, 7, "bold"),
+            )
+        if self.strip_opacity_scale is not None:
+            self.strip_opacity_scale.configure(
+                bg=self.palette.panel,
+                fg=self.palette.text,
+                troughcolor=self.palette.track,
+                activebackground=self.palette.active,
+            )
+        for button in self.strip_buttons:
+            button.configure(
+                bg=self.palette.panel_alt,
+                fg=self.palette.text,
+                activebackground=self.palette.active,
+                activeforeground=self.palette.active_text,
+                font=(self.font_family, 7, "bold"),
+            )
+        self._rebuild_strip_rows()
+        self.strip_window.update_idletasks()
+        width, height = strip_dimensions(
+            self.root.winfo_screenwidth(),
+            self.strip_window.winfo_reqwidth(),
+            self.strip_window.winfo_reqheight(),
+        )
+        x, y = strip_position(
+            self.root.winfo_screenwidth(),
+            self.root.winfo_screenheight(),
+            width,
+            height,
+            windows_work_area(),
+        )
+        if self.strip_custom_position is not None:
+            x, y = clamp_strip_position(
+                self.strip_custom_position[0],
+                self.strip_custom_position[1],
+                self.root.winfo_screenwidth(),
+                self.root.winfo_screenheight(),
+                width,
+                height,
+                windows_work_area(),
+            )
+            self.strip_custom_position = (x, y)
+        self.strip_window.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _rebuild_strip_rows(self) -> None:
+        if self.strip_rows_frame is None:
+            return
+        self.strip_rows_frame.configure(bg=self.palette.panel)
+        for child in self.strip_rows_frame.winfo_children():
+            child.destroy()
+        rows = (
+            (
+                "Claude",
+                self.latest_state.claude_session,
+                self.latest_state.claude_weekly,
+                rgb_to_hex(CLAUDE_COLOR),
+            ),
+            (
+                "Codex",
+                self.latest_state.codex_session,
+                self.latest_state.codex_weekly,
+                rgb_to_hex(CODEX_COLOR),
+            ),
+        )
+        for index, (name, session, weekly, accent) in enumerate(rows):
+            row = tk.Frame(self.strip_rows_frame, bg=self.palette.panel)
+            row.pack(anchor="w", pady=(0, 3 if index == 0 else 0))
+            self._bind_strip_drag(row)
+            tk.Label(
+                row,
+                text=name,
+                width=6,
+                bg=self.palette.panel,
+                fg=self.palette.text,
+                anchor="w",
+                font=(self.font_family, 8, "bold"),
+            ).pack(side="left")
+            self._build_strip_quota_segment(row, "5H", session, accent)
+            self._build_strip_quota_segment(row, "W", weekly, accent)
+
+    def _build_strip_quota_segment(
+        self,
+        parent: tk.Frame,
+        title: str,
+        row: QuotaRowState,
+        fallback_color: str,
+    ) -> None:
+        segment = tk.Frame(parent, bg=self.palette.panel)
+        segment.pack(side="left", padx=(0, 8))
+        self._bind_strip_drag(segment)
+        percent_color = rgb_to_hex(row.color) if row.available else self.palette.muted
+        label = tk.Label(
+            segment,
+            text=f"{title} {brief_percent(row)}",
+            bg=self.palette.panel,
+            fg=percent_color,
+            anchor="w",
+            font=(self.font_family, 8, "bold"),
+        )
+        label.pack(side="left")
+        self._bind_strip_drag(label)
+        bar = tk.Canvas(
+            segment,
+            width=STRIP_BAR_WIDTH,
+            height=STRIP_BAR_HEIGHT,
+            bg=self.palette.panel,
+            highlightthickness=0,
+        )
+        bar.pack(side="left", padx=(4, 4))
+        self._bind_strip_drag(bar)
+        self._bind_bar_resize(bar, row, fallback_color)
+        self._draw_bar(bar, STRIP_BAR_WIDTH, row, fallback_color)
+        reset = tk.Label(
+            segment,
+            text=brief_reset(row),
+            bg=self.palette.panel,
+            fg=self.palette.muted,
+            anchor="w",
+            font=(self.font_family, 7),
+        )
+        reset.pack(side="left")
+        self._bind_strip_drag(reset)
+
+    def _hide_status_strip(self) -> None:
+        if self.strip_window is not None and self.strip_window.winfo_exists():
+            self.strip_window.withdraw()
+
+    def _close(self) -> None:
+        if self.tray_icon is not None:
+            self.tray_icon.stop()
+            self.tray_icon = None
+        if self.strip_window is not None and self.strip_window.winfo_exists():
+            self.strip_window.destroy()
+            self.strip_window = None
+            self.strip_frame = None
+            self.strip_header = None
+            self.strip_rows_frame = None
+            self.strip_title_label = None
+            self.strip_opacity_caption = None
+            self.strip_opacity_label = None
+            self.strip_opacity_scale = None
+            self.strip_buttons = []
+        self.root.destroy()
+
     def _template_button_text(self) -> str:
         template = TEMPLATES_BY_ID[normalize_template(self.template_id)]
         return f"Style {template.display_name}"
@@ -647,10 +1250,16 @@ class DesktopUsageApp:
         self.palette = template.palette
         self.font_family = template.font_family
         self._build_ui()
+        self._update_status_strip()
 
     def _set_opacity_from_scale(self, value: str) -> None:
-        self.opacity = clamp_opacity(float(value) / 100.0)
+        self._set_opacity(float(value) / 100.0)
+
+    def _set_opacity(self, value: float) -> None:
+        self.opacity = clamp_opacity(value)
+        self.opacity_var.set(round(self.opacity * 100))
         self.root.attributes("-alpha", self.opacity)
+        self._update_status_strip()
 
     def refresh(self) -> None:
         if self.refreshing:
@@ -681,6 +1290,7 @@ class DesktopUsageApp:
         self.updated_time_var.set(f"updated {updated}")
         self.updated_var.set(f"{clean_label(result.state.rate_text)} · {result.state.today_text}")
         self.status_var.set(f"{clean_label(result.state.status_text)} · updated {updated}")
+        self._update_tray_details()
         self._render()
         self.root.after(self.interval * 1000, self.refresh)
 
@@ -796,6 +1406,7 @@ class DesktopUsageApp:
         updated = datetime.now().strftime("%H:%M:%S")
         self.updated_time_var.set(f"updated {updated}")
         self.status_var.set(f"{clean_label(self.latest_state.status_text)} · updated {updated}")
+        self._update_tray_details()
         self._render()
 
     def _sync_codex_rows(self) -> None:
@@ -803,6 +1414,7 @@ class DesktopUsageApp:
         self.latest_state.codex_session = rows[0]
         self.latest_state.codex_weekly = rows[1]
         self.last_codex_poll = time.monotonic()
+        self._update_tray_details()
 
     def _build_mini_card(self, product: ProductView) -> tk.Frame:
         if self.cards is None:

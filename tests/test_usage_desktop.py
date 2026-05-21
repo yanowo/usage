@@ -103,3 +103,56 @@ def test_clean_label_removes_common_prefixes() -> None:
     assert usage_desktop.clean_label("狀態：ok") == "ok"
     assert usage_desktop.clean_label("速率：Idle") == "Idle"
     assert usage_desktop.clean_label("今日：$0.00") == "$0.00"
+
+
+def test_tray_labels_summarize_usage() -> None:
+    assert usage_desktop.tray_tooltip(_state()) == (
+        "usage | Claude 5H 42% W -- | Codex 5H 9% W --"
+    )
+    assert usage_desktop.tray_summary(_state()) == (
+        "Claude: 5H 42% (1h 0m), Weekly -- (--)\n"
+        "Codex: 5H 9% (4h 0m), Weekly -- (--)"
+    )
+    assert usage_desktop.tray_strip_text(_state()) == (
+        "Claude 5H 42% R 1h 0m | W -- R --\n"
+        "Codex  5H 9% R 4h 0m | W -- R --"
+    )
+
+
+def test_strip_position_uses_work_area() -> None:
+    work_area = usage_desktop.WorkArea(left=0, top=0, right=1920, bottom=1040)
+
+    assert usage_desktop.strip_position(1920, 1080, 460, 82, work_area) == (1452, 950)
+    assert usage_desktop.strip_position(320, 240, 460, 82, None) == (8, 150)
+
+
+def test_strip_dimensions_adapt_to_content() -> None:
+    assert usage_desktop.strip_dimensions(1920, 260, 70) == (
+        usage_desktop.STRIP_MIN_WIDTH,
+        usage_desktop.STRIP_MIN_HEIGHT,
+    )
+    assert usage_desktop.strip_dimensions(1920, 372, 95) == (372, 95)
+    assert usage_desktop.strip_dimensions(320, 500, 95) == (304, 95)
+
+
+def test_clamp_strip_position_keeps_strip_visible() -> None:
+    work_area = usage_desktop.WorkArea(left=10, top=20, right=1920, bottom=1040)
+
+    assert usage_desktop.clamp_strip_position(
+        -100,
+        -100,
+        1920,
+        1080,
+        460,
+        82,
+        work_area,
+    ) == (10, 20)
+    assert usage_desktop.clamp_strip_position(
+        1900,
+        1030,
+        1920,
+        1080,
+        460,
+        82,
+        work_area,
+    ) == (1460, 958)
