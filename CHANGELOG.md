@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.3.5 — 2026-05-22
+
 ### 新增
 - **Windows Desktop 模式**：新增 `usage_desktop.py`，提供 Tkinter 桌面小工具、`All / Claude / Codex` 切換、置頂、透明度、Mini 模式、縮到狀態條、系統匣整合與主題切換。
 - **Web 模式**：新增 `usage_web.py`，提供本機 HTTP UI、`/api/usage` JSON API、`Full / Compact / Wide` 版面、產品篩選與亮暗色主題。

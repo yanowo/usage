@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+## 0.3.5 — 2026-05-22
+
 ### Added
 - **Windows Desktop mode**: added `usage_desktop.py` with a Tkinter desktop widget, `All / Claude / Codex` filtering, topmost mode, opacity control, Mini mode, status-strip mode, system tray integration, and theme switching.
 - **Web mode**: added `usage_web.py` with a local HTTP UI, `/api/usage` JSON API, `Full / Compact / Wide` layouts, product filtering, and light/dark themes.
