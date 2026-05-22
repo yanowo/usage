@@ -2,112 +2,116 @@
 
 繁體中文 · [English](README.en.md)
 
-[![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
-[![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
+[![CI](https://github.com/yanowo/usage/actions/workflows/check.yml/badge.svg)](https://github.com/yanowo/usage/actions/workflows/check.yml)
+[![Latest Release](https://img.shields.io/github/v/release/yanowo/usage)](https://github.com/yanowo/usage/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](README.md)
-[![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Web-lightgrey.svg)](README.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`usage` 是一個顯示 **Claude Code 跟 Codex** 用量的小工具。macOS 可以跑在 menu bar（螢幕右上角的選單列），Windows 可以跑成桌面小視窗，也可以用 Web 介面讓瀏覽器或桌面擺件直接用 URL 查看目前 5 小時、7 天、今日 token 用量與成本估算。
+`usage` 是一個本機用量監控工具，用來顯示 **Claude Code** 與 **Codex** 的 5 小時、Weekly、今日 token 與成本估算。
 
-不呼叫 Anthropic / OpenAI 的 API（接口）、也不讀 Keychain（macOS 內建的密碼保險箱），所以不會發生「自己每分鐘 ping 一次也算用量」這種事。
+目前支援三種主要使用方式：
+
+- **macOS**：選單列 menu bar app，點開後顯示完整 popover 面板。
+- **Windows**：桌面小工具，支援置頂、透明度、Mini 模式、縮到狀態條、外接螢幕拖曳。
+- **Web**：本機 HTTP 頁面與 JSON API，可給瀏覽器、桌面擺件、Rainmeter 類工具或內嵌面板使用。
+
+本專案基於上游 [aqua5230/usage](https://github.com/aqua5230/usage) 延伸；若散布 fork 或衍生版本，請保留上游專案連結與授權資訊。
 
 <p align="center">
-  <img src="docs/popover.png" alt="usage popover 展開時的樣子" width="320">
+  <img src="docs/popover.png" alt="usage macOS popover" width="320">
 </p>
 
-## 它怎麼拿到你的用量數字
+## 核心特性
 
-用量數字來自 Claude Code 跟 Codex 在你本機留下的檔案，不呼叫 Anthropic / OpenAI 的 API。唯一的例外：估算 Codex 成本時需要 token 單價表，如果本機沒有快取（`~/.claude/pricing_cache.json`），會嘗試從公開的 [LiteLLM 價格表](https://github.com/BerriAI/litellm) 下載一次並存起來，7 天後過期再抓。下載失敗的話會用內建的 fallback 價格，不影響用量百分比的顯示。首次啟動若沒快取會同步抓一次，網路慢時可能要等 ~10 秒。
+- 本機讀取用量，不呼叫 Anthropic / OpenAI API。
+- Claude Code 用量來自官方 `statusLine` JSON 裡的 `rate_limits`。
+- Codex 用量來自 `~/.codex/sessions/**/*.jsonl` 的 `rate_limits` 與 token 記錄。
+- macOS 內建 6 種面板：預設、台灣用量監控、駭客任務、ECG、Minimal、手繪。
+- Windows 桌面版支援 `All / Claude / Codex`、透明度、置頂、Mini、小狀態條、多螢幕拖曳。
+- Web 版支援 `Full / Compact / Wide`、`All / Claude / Codex`、亮暗色與 `/api/usage`。
+- 可用 mock 模式預覽 UI，不需要先安裝 Claude hook。
 
-### Claude Code 用量
+## 資料來源
 
-usage 會幫你裝一個小腳本，這個小腳本叫做 **statusLine hook**（hook 就是「事件觸發點」，每次 Claude Code 刷新狀態列就會自動跑一次的小程式）。流程是這樣：
+### Claude Code
 
-1. Claude Code 每次更新狀態列時，會把「這 5 小時用了百分之幾、這 7 天用了百分之幾」這類資訊整理成 JSON
-2. 透過標準輸入（stdin）餵給 hook
-3. hook 把 JSON 寫進 `~/.claude/usage-status.json` 這個檔
-4. usage 主程式去讀這個檔
+Claude Code 的資料來源是官方 `statusLine` hook。`usage` 會把 `usage_statusline.py` 安裝到 `~/.claude/usage-statusline.py`，並更新 `~/.claude/settings.json`：
 
-因為兩邊看的是同一份資料，**數字跟 Claude Code 自己看到的完全一樣**。
-
-```mermaid
-flowchart LR
-    A[Claude Code 主程式] -->|每次刷新狀態列<br/>把 JSON 透過 stdin 餵給 hook| B[usage-statusline.py<br/>hook 腳本]
-    B -->|寫入| C[(~/.claude/<br/>usage-status.json)]
-    D[usage menu bar / Web / TUI] -->|讀取| C
-    D -->|顯示| E[macOS menu bar / browser / widget URL]
-    F((Anthropic API)) -.x.- D
-    style F stroke:#c0392b,stroke-dasharray:5 5
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "python3 ~/.claude/usage-statusline.py",
+    "refreshInterval": 1
+  }
+}
 ```
 
-會讀的 Claude 狀態檔來源：
+Claude Code 刷新 status line 時會把當前 session JSON 餵給 hook，hook 只做一件事：把 JSON 寫到 `~/.claude/usage-status.json`。`usage` 再讀這份檔案中的：
 
-1. `~/.claude/usage-status.json` —— usage 自己 hook 寫的
-2. `~/.claude/usag-status.json` —— v0.1.x legacy 自動 fallback，新使用者不會碰到
-3. `~/.claude/tt-status.json` —— 備援；如果你也裝過 [token-tracker](https://github.com/stormzhang/token-tracker)，usage 會直接共用它的狀態檔
+- `rate_limits.five_hour.used_percentage`
+- `rate_limits.seven_day.used_percentage`
+- `rate_limits.*.resets_at`
+- `context_window`
+- `cost`
 
-如果同時存在多份狀態檔，usage 會選「最新且有 quota 資料」的快照；時間相同時才優先使用 usage 自己的檔案，避免舊快照蓋掉較新的用量。
+Claude 狀態檔讀取順序不是死吃第一個檔案；如果多份檔案同時存在，會選「最新且有 quota 資料」的快照：
 
-### Codex 用量
+1. `~/.claude/usage-status.json`
+2. `~/.claude/usag-status.json`，舊版 legacy fallback
+3. `~/.claude/tt-status.json`，token-tracker 相容 fallback
 
-Codex CLI 沒有 statusLine hook 這種機制，所以 usage 採另一條路：掃 Codex CLI 在 `~/.codex/sessions/` 底下留下的 `*.jsonl` 對話紀錄檔。Codex 每次對話會在紀錄裡寫入 `rate_limits`（配額資訊），usage 會依 `window_minutes=300` 與 `window_minutes=10080` 分別對應 CLI 的 5h 與 weekly 用量百分比，不自己估算。今日的 token 用量跟成本則從同一份紀錄的 token 統計加總。
+`/usage` 是 Claude Code 的互動式指令，不是穩定 JSON API；本專案不解析 `/usage` 畫面文字。
 
-沒裝 Codex 或沒這個資料夾的話，這部分會自動隱藏，不會影響 Claude Code 那邊的顯示。
+### Codex
 
-## 你需要的東西
+Codex CLI 沒有 Claude Code 那種 statusLine hook，所以 `usage` 會掃描：
+
+```text
+~/.codex/sessions/**/*.jsonl
+```
+
+Codex 記錄中若出現 `rate_limits`，會依視窗長度對應：
+
+- `window_minutes=300`：5 小時 quota
+- `window_minutes=10080`：Weekly quota
+
+今日 token 與成本估算會從同一批 session log 加總。沒安裝 Codex、沒有 session 目錄、或 log 還沒有 `rate_limits` 時，Codex 區塊會顯示空資料，不影響 Claude 顯示。
+
+### 成本估算
+
+用量百分比不需要網路。只有在估算 Codex 成本、且本機沒有價格表快取時，`usage` 會嘗試下載公開的 LiteLLM pricing JSON，並快取到：
+
+```text
+~/.claude/pricing_cache.json
+```
+
+下載失敗時會用內建 fallback 價格，不影響 quota 百分比。
+
+## 系統需求
 
 - macOS 或 Windows
-- Python 3.13
-- 已經裝好、登入過 Claude Code（Codex 是可選的）
+- Python 3.13 以上
+- 已安裝並登入 Claude Code
+- Codex CLI 可選
+
+Windows 版桌面小工具需要 Python 內含 Tkinter。若你的 Python 沒有 Tkinter，可以改用 Web 模式。
 
 ## 快速開始
 
-| 我是… | 怎麼用 |
-|-------|--------|
-| macOS 一般使用者，想直接用 | [下載現成 App](#下載現成-app) |
-| Windows 一般使用者，想直接用 exe | [下載 Windows exe](#下載-windows-exe) |
-| Windows 使用者，想要桌面小視窗 | [Desktop 模式](#desktop-模式windows-預設) |
-| 想用桌面擺件 URL | [Web 模式](#web-模式url--桌面擺件) |
-| 開發者，想從原始碼跑 | [建環境](#建環境) |
-| 只想先看看 UI 長什麼樣 | [預覽模式](#想先看看-ui-長什麼樣預覽模式) |
-
-## 下載現成 App
-
-到 [GitHub Releases 頁面](https://github.com/aqua5230/usage/releases/latest) 下載最新的 `usage.app.zip`，解壓縮後把 `usage.app` 拖到任何地方（例如 `/Applications`）就能跑。
-
-⚠️ 因為沒有 Apple Developer 簽章，**第一次開啟時 macOS Gatekeeper（系統的「擋陌生程式」保全機制）會擋下來**。
-解法：在 Finder 找到 `usage.app` → 按住 Ctrl 點右鍵 → 選「打開」→ 再確認一次「打開」。之後就能直接雙擊。
-
-### 首次打開：把 hook 裝起來
-
-第一次打開 usage，如果你還沒「對接」過 Claude Code，popover 會偵測到「找不到狀態檔」，**最下面會多出一顆「立即安裝 hook」按鈕**，按一下就會幫你裝好。然後**完全結束 Claude Code（Cmd+Q）再重新打開一次**，在 usage 視窗按「立即更新」，數字就會跑出來。
-
-如果按鈕沒出現（代表 usage 已經抓到資料了，例如你之前裝過 [token-tracker](https://github.com/stormzhang/token-tracker)），就什麼都不用做。
-
-> **備援：手動 curl 安裝**
-> 若按鈕按了沒反應、或你想用指令模式裝，打開 Terminal（終端機）貼這一行：
->
-> ```bash
-> bash <(curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh)
-> ```
-
-## 下載 Windows exe
-
-到 [GitHub Releases 頁面](https://github.com/aqua5230/usage/releases/latest) 下載 `usage.exe`。雙擊後會啟動 Windows 桌面小工具；如果 SmartScreen 提醒未知發行者，確認來源是本專案 Release 後再選擇保留 / 執行。
-
-## 拿到原始碼
+### 1. 取得專案
 
 ```bash
-git clone https://github.com/aqua5230/usage.git
+git clone https://github.com/yanowo/usage.git
 cd usage
 ```
 
-不熟 git 也可以到 [GitHub 專案頁](https://github.com/aqua5230/usage) 點右上角綠色的 **Code → Download ZIP**，解壓縮後 `cd` 進那個資料夾。
+如果你要使用上游原版，請改用 [aqua5230/usage](https://github.com/aqua5230/usage)。
 
-## 建環境
+### 2. 建立環境
 
-下面這幾行會幫你開一個**獨立的 Python 環境**（venv，virtual environment 的縮寫，就像幫這個專案開一個專用的抽屜，跟系統 Python 分開，互不干擾），然後把 usage 跟它需要的套件裝進去：
+macOS：
 
 ```bash
 python3 -m venv .venv
@@ -123,216 +127,318 @@ py -3.13 -m venv .venv
 pip install -e .
 ```
 
-`source .venv/bin/activate` 或 `.\.venv\Scripts\Activate.ps1` 是「進入這個抽屜」的意思 —— 跑完之後你 terminal 提示字元前面會多一個 `(.venv)`，代表現在 Python 指令會在這個獨立環境裡跑。
+### 3. 安裝 Claude Code hook
 
-## 跟 Claude Code 對接（原始碼模式必跑一次）
-
-> 用 .app 的話，第一次打開直接點 popover 上的「立即安裝 hook」按鈕就好，不用跑這段。下面是給從原始碼跑 usage 的開發者用的。
-
-這個指令會做兩件事：把 usage 的 hook 腳本複製到 `~/.claude/` 裡，再去改 Claude Code 的設定檔，讓它每次刷新狀態列時去叫這個 hook。
+原始碼模式第一次使用必跑：
 
 ```bash
-source .venv/bin/activate
 python3 main.py --setup
 ```
 
 Windows PowerShell：
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
 python main.py --setup
 ```
 
-**跑完後請重開一次 Claude Code**，這樣它才會重新讀 `~/.claude/settings.json` 並刷新一次狀態列（資料這時候才會落到磁碟）。
+完成後請完整重啟 Claude Code，讓它重新讀取 `~/.claude/settings.json`。重啟後 Claude Code 下一次刷新 statusLine 時，`~/.claude/usage-status.json` 才會更新。
 
-setup 具體做了什麼：
-
-- 把 `usage_statusline.py` 複製到 `~/.claude/usage-statusline.py`
-- 在 `~/.claude/settings.json` 把 `statusLine` 指向這個 hook，並設定 `refreshInterval: 1` 讓 Claude Code 閒置時也會持續刷新狀態檔
-- 如果你本來就有自訂的 statusLine，會自動備份到 `settings.usage.previousStatusLine`，不會被蓋掉
-
-要卸載：
+卸載 hook：
 
 ```bash
 python3 main.py --unsetup
 ```
 
-unsetup 會把原本的 statusLine 還原回去、刪掉 hook 跟 `~/.claude/usage-status.json`。
-
-## 跑起來
-
-### Desktop 模式（Windows 預設）
-
-Windows 沒有 macOS menu bar，所以預設會啟動一個置頂、可拖曳的小視窗。視窗內可以切換 `All / Claude / Codex`，並會定時更新用量。
-
-Desktop 小工具支援：
-
-- 左上角拖曳調整視窗大小，避免右下角被其他桌面元件遮住
-- `Alpha` 滑桿調整透明度
-- `Pinned / Pin` 切換是否永遠置頂
-- `Mini` 模式縮成單一 `Codex` 或 `Claude` 的 `5h / Weekly` 用量與更新時間，降低遮蔽桌面的面積
-- `Style` 在 `Classic / Taiwan / Matrix / ECG / Minimal / Sketch` 之間切換，對齊 macOS 版原本的小工具 template
+Windows PowerShell：
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-python main.py
+python main.py --unsetup
 ```
 
-也可以明確指定 desktop 模式：
+## 使用方式
 
-```powershell
-python main.py --desktop
-```
+### macOS Menu Bar
 
-如果不想保留 PowerShell 視窗，可以用 Windows 的 `pythonw.exe` 建捷徑，例如捷徑目標填：
-
-```powershell
-E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
-```
-
-### Web 模式（URL / 桌面擺件）
-
-如果你要把畫面嵌到可顯示網頁 URL 的桌面擺件，請手動啟動 Web 模式。
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python main.py --web
-```
-
-啟動後會印出幾個入口：
-
-- `http://127.0.0.1:8765/`：主頁，可直接切換產品、亮暗色與版面
-- `http://127.0.0.1:8765/?layout=compact`：同一個主頁的小尺寸版面
-- `http://127.0.0.1:8765/?layout=horizontal`：同一個主頁的寬版橫式版面
-- `http://127.0.0.1:8765/api/usage`：JSON API
-
-如果你的桌面擺件只需要一個 URL，請填 `http://127.0.0.1:8765/?layout=compact` 或 `http://127.0.0.1:8765/?layout=horizontal`。要改 port 可用：
-
-```powershell
-python main.py --web --port 9000
-```
-
-主頁右上角可以切換 `All / Claude / Codex`、`Full / Compact / Wide` 與 `Dark / Light`，選擇會存在瀏覽器 localStorage。也可以直接用 URL 指定：
-
-- `http://127.0.0.1:8765/?product=claude`
-- `http://127.0.0.1:8765/?product=codex`
-- `http://127.0.0.1:8765/?layout=compact`
-- `http://127.0.0.1:8765/?layout=horizontal`
-
-暗色模式可在主頁按 `Dark / Light` 切換，也支援 URL：
-
-- `http://127.0.0.1:8765/?theme=dark`
-- `http://127.0.0.1:8765/?layout=horizontal&theme=light`
-
-### Menu bar 模式（macOS 預設）
-
-啟動後會在 macOS 右上角的選單列常駐，平常只顯示一行小小的百分比；點下去就會展開完整的 popover（彈出小視窗）。
+macOS 預設會啟動 menu bar app：
 
 ```bash
 source .venv/bin/activate
 python3 main.py
 ```
 
-- **選單列那行字長這樣**：`🐾 37%`；如果同時有 Codex 用量，會變成 `🐾 37% · 📜 10%`：
+啟動後右上角會出現 `usage` 狀態項。點開後會顯示 Claude / Codex 兩組 quota、目前速率、同步狀態、今日 token 與成本。
 
-  <img src="docs/menubar.png" alt="menu bar 上方顯示樣式" width="240">
+內建面板：
 
-- **點一下會展開 popover**，分三塊：
-  1. 上面兩張卡片分別是 Claude Code 跟 Codex，每張各有 `5h` 跟 `Weekly` 兩條進度條，旁邊標重置倒數
-  2. 最下面那張小卡是目前速率、同步狀態、今日 token 用量與成本估算（Claude 若 log 有提供實際金額則直接顯示；Codex 成本為依 token 數估算）
-  3. 兩顆按鈕：「立即更新」、「結束」
-- **切換面板**（v0.3.0+）：在 Claude Code 卡片的右上角有一顆「⇄ 更換」按鈕（台灣面板則放在頂部標題列裡），點下去會跳出選單列出可選的面板樣式。目前內建六款：
-  - **預設**：原本兩張卡 + 速率/狀態/今日 的英式風格
-  - **台灣用量監控**：紅底白字、上方加一條含 TAIWAN 旗 icon 的標題列
-  - **駭客任務**（v0.3.1+）：黑底綠字數位雨動畫，Matrix 風格終端機介面
-  - **ECG 心電圖**：醫療監視器風格，LEAD A（Claude）與 LEAD B（Codex）各有一條即時 ECG 波形動畫，振幅跟著 quota 使用率變化，速率越高波形越激烈
-  - **Minimal**（v0.3.3+）：深色簡約風格，Linear / Raycast 設計語言。純黑底色、圓角卡片、accent 色進度條（Claude 暖橘 / Codex 青色）；頁尾卡片以左標籤 + 右數值的雙欄結構呈現速率、狀態、今日花費
-  - **手繪**（v0.3.4+）：Excalidraw 手繪塗鴉風格。珊瑚粉底色、米白卡片、粗黑邊框、卡片四角畫釘裝飾；Claude 深橘紅、Codex 深青綠，視覺輕鬆活潑
-
-  <p align="center">
-    <img src="docs/popover.png" alt="預設面板" width="180">
-    <img src="docs/popover-taiwan.png" alt="台灣用量監控面板" width="180">
-    <img src="docs/popover-matrix.png" alt="駭客任務面板" width="180">
-    <img src="docs/popover-ecg.png" alt="ECG 心電圖面板" width="180">
-    <img src="docs/popover-minimal.png" alt="Minimal 面板" width="180">
-    <img src="docs/popover-sketch.png" alt="手繪面板" width="180">
-  </p>
-
-  選擇會記進 `NSUserDefaults`（macOS 內建的偏好設定儲存區），下次開 app 會記得上次選的面板。
-- **權限提醒**：第一次啟動時，macOS 可能會問你要不要讓它在背景跑，點「允許」就好。
-
-### 終端機 TUI 模式
-
-如果你比較喜歡留在終端機，可以用 TUI（Text-based UI，文字版的圖形介面）模式 —— 畫面全部畫在終端機裡，不開新視窗，靠不停重畫文字模擬動畫效果。會有一個 Claude 的像素藝術 logo、旋轉的 spinner、輪播 Claude Code 那套搞笑 loading 字串，以及跟 menu bar 同樣的兩條進度條：
+- **預設**：兩張 quota 卡片與底部狀態卡。
+- **台灣用量監控**：紅白主題與台灣標題列。
+- **駭客任務**：黑底綠字與 Matrix 數位雨動畫。
+- **ECG**：醫療監視器風格，Claude / Codex 各一條動態波形。
+- **Minimal**：深色簡約風格。
+- **手繪**：Excalidraw 類手繪風格。
 
 <p align="center">
-  <img src="docs/tui.png" alt="usage TUI 模式畫面" width="480">
+  <img src="docs/popover.png" alt="預設面板" width="180">
+  <img src="docs/popover-taiwan.png" alt="台灣用量監控面板" width="180">
+  <img src="docs/popover-matrix.png" alt="駭客任務面板" width="180">
+  <img src="docs/popover-ecg.png" alt="ECG 面板" width="180">
+  <img src="docs/popover-minimal.png" alt="Minimal 面板" width="180">
+  <img src="docs/popover-sketch.png" alt="手繪面板" width="180">
 </p>
 
+若你下載的是 `.app` 版本，第一次開啟可能被 Gatekeeper 擋下。解法是 Finder 找到 `usage.app`，按住 Ctrl 右鍵，選「打開」，再確認一次。
+
+### Windows Desktop
+
+Windows 預設會啟動桌面小工具：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py
+```
+
+也可以明確指定：
+
+```powershell
+python main.py --desktop
+```
+
+桌面小工具功能：
+
+- `All / Claude / Codex` 切換顯示範圍。
+- `Refresh` 立即刷新。
+- `Pinned / Pin` 切換是否置頂。
+- `Alpha` 調整透明度。
+- `Mini` 縮成單產品小卡。
+- `_` 縮到狀態條小工具；狀態條可拖曳，支援外接螢幕。
+- `Style` 切換 Classic / Taiwan / Matrix / ECG / Minimal / Sketch。
+
+如果不想保留 PowerShell 視窗，可以建立捷徑並使用 `pythonw.exe`：
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+```
+
+請把路徑換成你的實際專案位置。
+
+### Web
+
+Web 模式會啟動本機 HTTP server：
+
 ```bash
-source .venv/bin/activate
+python3 main.py --web
+```
+
+Windows PowerShell：
+
+```powershell
+python main.py --web
+```
+
+預設網址：
+
+- `http://127.0.0.1:8765/`
+- `http://127.0.0.1:8765/?layout=compact`
+- `http://127.0.0.1:8765/?layout=horizontal`
+- `http://127.0.0.1:8765/api/usage`
+
+可用參數：
+
+```bash
+python3 main.py --web --host 127.0.0.1 --port 8765
+```
+
+若要讓同一區網其他裝置連進來，可改成：
+
+```bash
+python3 main.py --web --host 0.0.0.0 --port 8765
+```
+
+請自行確認防火牆與網路安全設定。預設綁定 `127.0.0.1`，只允許本機連線。
+
+Web UI 支援 URL 參數：
+
+- `?product=all`
+- `?product=claude`
+- `?product=codex`
+- `?layout=full`
+- `?layout=compact`
+- `?layout=horizontal`
+- `?theme=dark`
+- `?theme=light`
+
+桌面擺件通常建議使用：
+
+```text
+http://127.0.0.1:8765/?layout=compact
+```
+
+或寬版：
+
+```text
+http://127.0.0.1:8765/?layout=horizontal
+```
+
+### TUI
+
+終端機文字介面：
+
+```bash
 python3 main.py --tui
 ```
 
-按 `Ctrl+C` 退出。
+Windows PowerShell：
 
-## 開機自動啟動
+```powershell
+python main.py --tui
+```
 
-LaunchAgent 是 macOS 內建的背景服務管理器（負責「使用者登入後要幫忙啟動哪些程式」），可以讓 usage 在你登入時自動跑起來，不用每次手動啟動。
+<p align="center">
+  <img src="docs/tui.png" alt="usage TUI" width="480">
+</p>
 
-1. **安裝**：
-   ```bash
-   ./scripts/install-launchagent.sh
-   ```
-   這個指令會在 `~/Library/LaunchAgents/` 底下放一份設定檔，然後立刻把 usage 載入起來。
+按 `Ctrl+C` 離開。
 
-2. **手動啟動（測試用）**：
-   ```bash
-   launchctl start com.lollapalooza.usage
-   ```
+## Mock 預覽
 
-3. **查看 log**（log 就是這個服務跑的時候的「日誌」，裡面有訊息跟錯誤紀錄）：
-   - 一般訊息：`~/Library/Logs/usage/usage.log`
-   - 錯誤訊息：`~/Library/Logs/usage/usage.err.log`
-
-4. **移除**：
-   ```bash
-   ./scripts/uninstall-launchagent.sh
-   ```
-
-## 想先看看 UI 長什麼樣（預覽模式）
-
-還沒裝 hook、或者只想看看介面長什麼樣，可以用假資料（mock data）跑一次：
+還沒安裝 hook、或只想看 UI，可加 `--mock`：
 
 ```bash
-# Menu bar 預覽
 python3 main.py --mock
-
-# Web 預覽（Windows / browser / widget）
 python3 main.py --web --mock
-
-# Desktop 預覽（Windows 小視窗）
-python main.py --desktop --mock
-
-# TUI 預覽
+python3 main.py --desktop --mock
 python3 main.py --tui --mock
 ```
 
-## 全部可用參數
+Windows PowerShell：
 
-- `--setup` / `--unsetup`：安裝 / 卸載 Claude Code statusLine hook。
-- `--desktop`：啟動跨平台桌面小視窗（Windows 預設模式）。
-- `--web`：啟動跨平台 Web 介面。
-- `--host HOST`：Web server 綁定位址，預設 `127.0.0.1`。
-- `--port PORT`：Web server port，預設 `8765`。
-- `--tui`：強制使用終端機 TUI 模式（不開 menu bar）。
-- `--interval N`：UI 多久重新讀一次狀態檔（秒）。最小值 30，預設 60。
-- `--mock`：用假資料跑，不讀任何狀態檔。
-- `--force-group {0,1,2,3}`：強制指定速率分組（只有 TUI 模式有效）。
+```powershell
+python main.py --desktop --mock
+python main.py --web --mock
+```
+
+## CLI 參數
+
+| 參數 | 說明 |
+|------|------|
+| `--setup` | 安裝 Claude Code statusLine hook |
+| `--unsetup` | 移除 hook，並還原原本的 statusLine 設定 |
+| `--desktop` | 啟動桌面小工具 |
+| `--web` | 啟動 Web UI 與 JSON API |
+| `--host HOST` | Web 綁定位址，預設 `127.0.0.1` |
+| `--port PORT` | Web port，預設 `8765` |
+| `--tui` | 啟動終端機 TUI |
+| `--interval N` | 重新讀取資料間隔，最小 30 秒，預設 60 秒 |
+| `--mock` | 使用假資料預覽 |
+| `--force-group {0,1,2,3}` | TUI 測試用，強制速率分組 |
+
+平台預設：
+
+- Windows：`python main.py` 等同 desktop。
+- macOS：`python3 main.py` 等同 menu bar。
+- 其他平台：`python3 main.py` 會 fallback 到 Web。
+
+## 開機自動啟動
+
+### macOS LaunchAgent
+
+```bash
+./scripts/install-launchagent.sh
+```
+
+查看 log：
+
+```text
+~/Library/Logs/usage/usage.log
+~/Library/Logs/usage/usage.err.log
+```
+
+移除：
+
+```bash
+./scripts/uninstall-launchagent.sh
+```
+
+### Windows
+
+可以把下列指令做成捷徑，放進 Windows Startup 資料夾：
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+```
+
+Web 模式則可建立：
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --web
+```
+
+## 打包
+
+### macOS `.app`
+
+```bash
+./scripts/build_app.sh
+```
+
+輸出：
+
+```text
+dist/usage.app
+```
+
+### Windows `.exe`
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+```
+
+輸出：
+
+```text
+dist\usage.exe
+```
+
+## 開發與驗證
+
+安裝開發工具：
+
+```bash
+pip install pytest ruff mypy
+```
+
+執行檢查：
+
+```bash
+pytest
+ruff check .
+mypy .
+```
+
+Windows PowerShell：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\ruff.exe check .
+.\.venv\Scripts\mypy.exe .
+```
+
+## 常見問題
+
+| 問題 | 可能原因 | 解法 |
+|------|----------|------|
+| Claude 顯示 `--` | hook 未安裝，或 Claude Code 尚未刷新 statusLine | 跑 `python main.py --setup`，重啟 Claude Code，等它刷新一次 |
+| Claude 顯示 0%，但 `/usage` 看起來不是 0% | 本地 `usage-status.json` 還是舊快照，或目前使用的是 IDE entrypoint 且沒有刷新 statusLine | 重啟原生 Claude Code，確認 `~/.claude/settings.json` 有 `refreshInterval: 1` |
+| 狀態顯示 stale / 未更新 | Claude Code 很久沒有寫入新的 statusLine JSON | 打開 Claude Code，讓它觸發一次回應或 statusLine 刷新 |
+| Codex 區塊沒有資料 | 沒有 `~/.codex/sessions`，或 log 尚未出現 `rate_limits` | 用 Codex 跑一次對話後再刷新 |
+| Windows 沒有出現桌面小工具 | Tkinter 不可用，或 GUI 環境異常 | 改用 `python main.py --web`，或安裝含 Tkinter 的 Python |
+| Web URL 打不開 | server 沒啟動、port 被占用、host 不一致 | 重新執行 `python main.py --web`，看終端機印出的實際 URL |
+| 今日成本是 `$0.00` | 沒有成本記錄、pricing cache 失效，或模型名稱無法對應 | 刪除 `~/.claude/pricing_cache.json` 讓它重抓，或用 `USAGE_DEBUG=1` 查看細節 |
+| macOS `.app` 打不開 | Gatekeeper 擋未簽章 app | Finder 中 Ctrl + 右鍵 `usage.app`，選「打開」 |
 
 ## 除錯
 
-想看 usage 內部有沒有吞掉什麼錯誤（例如 OSError，作業系統相關錯誤），啟動時加環境變數：
+啟用 debug log：
 
 ```bash
 USAGE_DEBUG=1 python3 main.py
@@ -341,54 +447,42 @@ USAGE_DEBUG=1 python3 main.py
 Windows PowerShell：
 
 ```powershell
-$env:USAGE_DEBUG="1"; python main.py --web
+$env:USAGE_DEBUG="1"
+python main.py --web
 ```
 
-## 一些行為說明
-
-- usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。唯一會連網的情況是首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）。
-- Claude Code 沒在跑的時候，狀態檔不會更新；但因為實際用量也不會變（除非重置時間到了），所以顯示的數字仍然是有效的；重置時間過了會自動歸零。
-- 如果狀態檔超過 6 小時沒被更新過，會在狀態訊息標註「狀態檔已 N 分鐘未更新，數字可能過時」。
-
-## 常見問題排查
-
-下面的「解法」欄會分三種使用者寫，先對一下你屬於哪一種：
-
-- **.app 使用者** —— 從 GitHub Releases 下載 `usage.app.zip`、解壓後拖到 `/Applications`，像一般 Mac 軟體那樣雙擊圖示用的。`.app` 就是 macOS 應用程式的副檔名（像 Windows 的 `.exe`），不用碰 Terminal、不用裝 Python。
-- **Desktop / Windows 使用者** —— 從原始碼啟動 `python main.py` 或 `python main.py --desktop`，會開一個桌面小視窗。
-- **Web / Widget 使用者** —— 從原始碼啟動 `python main.py --web`，用瀏覽器或桌面擺件打開 URL。
-- **LaunchAgent 使用者** —— git clone 原始碼後，跑過 `./scripts/install-launchagent.sh` 讓 macOS 幫你開機自動啟動 usage 的。
-- **原始碼使用者** —— git clone 原始碼後，每次自己在 Terminal 跑 `python3 main.py` 的。
-
-| 症狀 | 原因 | 解法 |
-|------|------|------|
-| menu bar 顯示 `--` | hook 還沒裝、或 Claude Code 還沒刷新 | **.app 使用者**：點彈出視窗內的「立即安裝 hook」按鈕；**原始碼使用者**：跑 `python3 main.py --setup`。裝完都要重開一次 Claude Code |
-| Windows 打開 `python main.py` 沒有跳視窗 | Tkinter 不可用，或目前環境不能開 GUI | 改用 `python main.py --web`，或確認 Python 安裝包含 Tkinter |
-| 桌面擺件打不開 URL | usage web server 沒在跑、port 被改過或被占用 | 重新執行 `python main.py --web`，確認終端機顯示的 URL；若改 port，擺件 URL 也要一起改 |
-| 不小心按「結束」、腳印從選單列消失 | 「結束」會把整個 usage 程式關掉，要手動再開 | **.app 使用者**：按 `Cmd+Space` 叫出 Spotlight、輸入 `usage` 雙擊；或從 `/Applications` 找到 `usage.app` 雙擊。**LaunchAgent 使用者**：在 Terminal 跑 `launchctl start com.lollapalooza.usage`。**從原始碼跑的**：在 Terminal 再跑一次 `python3 main.py` |
-| 狀態顯示「N 分鐘未更新」 | Claude Code 沒在跑，沒有刷新 statusLine | 打開 Claude Code 跑一下，它刷新時會自動更新 |
-| Codex 那塊空白或不顯示 | `~/.codex/sessions/` 不存在，或還沒有含 rate_limits 的 token_count 事件 | 用 Codex 跑一次對話，等它寫入紀錄 |
-| 今日花費是 $0.00 | 模型名稱對不上 pricing 表，或 pricing 下載 / 快取失敗 | 刪掉 `~/.claude/pricing_cache.json` 讓它重新抓；或設 `USAGE_DEBUG=1` 看錯誤訊息 |
-| app 雙擊打不開 | macOS Gatekeeper 擋住未簽章的 app | Finder → 找到 `usage.app` → 按住 Ctrl 右鍵 → 打開 → 確認打開 |
-
-## 打包成 .app（不開終端機就能跑）
-
-想要雙擊圖示就跑、不開終端機，可以打包成 macOS 原生 App（.app 就是 macOS 看到的圖示，本質是一個目錄，裡面把程式跟資源打包在一起）：
+常用檢查：
 
 ```bash
-./scripts/build_app.sh
+cat ~/.claude/settings.json
+cat ~/.claude/usage-status.json
 ```
 
-跑完產物會在 `dist/usage.app`。雙擊或 `open dist/usage.app` 就能跑。
-
-每次發 GitHub Release（push 一個 `v*` 開頭的 tag 時），CI 會自動 build 並把 `usage.app.zip` 附加到 Release 頁面。
-
-## 打包成 Windows exe
-
-Windows 上可以用 PyInstaller 打包成單檔 exe：
+Windows PowerShell：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+Get-Content -Raw $env:USERPROFILE\.claude\settings.json
+Get-Content -Raw $env:USERPROFILE\.claude\usage-status.json
 ```
 
-跑完產物會在 `dist\usage.exe`。每次 push `v*` tag 或手動執行 `Windows exe` workflow 時，GitHub Actions 也會自動 build，並把 `usage.exe` 上傳成 artifact；若是 tag build，會同步附加到 Release。
+## 隱私與網路
+
+- 不讀 macOS Keychain。
+- 不呼叫 Anthropic API。
+- 不呼叫 OpenAI API。
+- Claude quota 來自 Claude Code statusLine JSON。
+- Codex quota 來自本機 Codex session log。
+- 唯一預期網路行為是下載公開 LiteLLM pricing JSON 供成本估算，並會快取。
+- Web 模式預設只綁定 `127.0.0.1`。
+
+## 致謝、授權與上游
+
+本 fork 基於原始 `usage` 專案，並延伸 Windows desktop、Web server、跨平台 CLI、Windows 打包與多螢幕小工具等功能。
+
+| 項目 | 連結 |
+|------|------|
+| 原作者 / 上游專案 | [lollapalooza · aqua5230/usage](https://github.com/aqua5230/usage) |
+| 本 fork | [yanowo/usage](https://github.com/yanowo/usage) |
+| 本 fork 授權 | [MIT License](LICENSE) |
+
+> 若你 fork、修改或重新發布，請保留這段 attribution 與上游專案連結。

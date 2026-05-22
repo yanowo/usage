@@ -2,110 +2,116 @@
 
 [繁體中文](README.md) · English
 
-[![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
-[![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
+[![CI](https://github.com/yanowo/usage/actions/workflows/check.yml/badge.svg)](https://github.com/yanowo/usage/actions/workflows/check.yml)
+[![Latest Release](https://img.shields.io/github/v/release/yanowo/usage)](https://github.com/yanowo/usage/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](README.en.md)
-[![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Web-lightgrey.svg)](README.en.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`usage` shows your **Claude Code and Codex** usage locally. On macOS it can live in the menu bar; on Windows it can run as a small desktop window, or as a local web UI so a browser or desktop widget can open a URL and show current 5-hour usage, 7-day usage, and today's token usage and cost estimate.
+`usage` is a local usage monitor for **Claude Code** and **Codex**. It shows 5-hour usage, weekly usage, today's token count, and cost estimates.
 
-It **never calls the Anthropic / OpenAI API** and **never reads the Keychain**, so it avoids the observer effect of "pinging once a minute counts as usage."
+The current fork supports three primary surfaces:
+
+- **macOS**: a menu bar app with a full popover panel.
+- **Windows**: a draggable desktop widget with topmost mode, opacity, Mini mode, status-strip mode, and external-monitor dragging.
+- **Web**: a local HTTP page and JSON API for browsers, desktop widgets, Rainmeter-style tools, and embedded panels.
+
+This project is based on the upstream [aqua5230/usage](https://github.com/aqua5230/usage). If you fork, modify, or redistribute it, keep the upstream project link and attribution.
 
 <p align="center">
-  <img src="docs/popover.png" alt="usage popover" width="320">
+  <img src="docs/popover.png" alt="usage macOS popover" width="320">
 </p>
 
-## How it gets the data
+## Highlights
 
-Usage numbers come from local files written by Claude Code and Codex — no Anthropic / OpenAI API calls. The one exception: to estimate Codex costs, usage needs a token pricing table. If no local cache exists (`~/.claude/pricing_cache.json`), it downloads the public [LiteLLM pricing JSON](https://github.com/BerriAI/litellm) once and caches it for 7 days. If the download fails, a built-in fallback price is used — usage percentage display is unaffected. On first launch without a cache, the fetch is synchronous and may take ~10 seconds on slow networks.
+- Reads usage locally; it does not call the Anthropic or OpenAI APIs.
+- Claude Code usage comes from the official `statusLine` JSON `rate_limits`.
+- Codex usage comes from `rate_limits` and token records in `~/.codex/sessions/**/*.jsonl`.
+- macOS ships six native panels: Default, Taiwan usage monitor, Matrix, ECG, Minimal, and Sketch.
+- Windows desktop mode supports `All / Claude / Codex`, opacity, topmost mode, Mini mode, status-strip mode, and multi-monitor dragging.
+- Web mode supports `Full / Compact / Wide`, `All / Claude / Codex`, light/dark theme, and `/api/usage`.
+- Mock mode previews the UI without installing the Claude hook first.
 
-### Claude Code usage
+## Data Sources
 
-usage installs a small **statusLine hook** — a script that Claude Code automatically pipes data into every time it refreshes its status line. The flow:
+### Claude Code
 
-1. Claude Code refreshes the status line and packages usage info (5-hour percentage, 7-day percentage, etc.) as JSON.
-2. It pipes that JSON to the hook via stdin.
-3. The hook writes the JSON to `~/.claude/usage-status.json`.
-4. The usage UI reads that file.
+Claude Code data comes from the official `statusLine` hook. `usage` installs `usage_statusline.py` to `~/.claude/usage-statusline.py` and updates `~/.claude/settings.json`:
 
-Since both sides look at the same source data, **the numbers match exactly what Claude Code itself shows**.
-
-```mermaid
-flowchart LR
-    A[Claude Code main process] -->|pipes JSON to stdin<br/>on every statusLine refresh| B[usage-statusline.py<br/>hook script]
-    B -->|writes| C[(~/.claude/<br/>usage-status.json)]
-    D[usage menu bar / Web / TUI] -->|reads| C
-    D -->|renders| E[macOS menu bar / browser / widget URL]
-    F((Anthropic API)) -.x.- D
-    style F stroke:#c0392b,stroke-dasharray:5 5
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "python3 ~/.claude/usage-statusline.py",
+    "refreshInterval": 1
+  }
+}
 ```
 
-Claude status files usage can read:
+Whenever Claude Code refreshes its status line, it pipes the current session JSON to the hook. The hook only writes that JSON to `~/.claude/usage-status.json`. `usage` then reads:
 
-1. `~/.claude/usage-status.json` — written by the hook usage installs.
-2. `~/.claude/usag-status.json` — automatic v0.1.x legacy fallback; new users should not encounter this.
-3. `~/.claude/tt-status.json` — fallback. If you also use [token-tracker](https://github.com/stormzhang/token-tracker), usage will share its status file.
+- `rate_limits.five_hour.used_percentage`
+- `rate_limits.seven_day.used_percentage`
+- `rate_limits.*.resets_at`
+- `context_window`
+- `cost`
 
-If multiple status files exist, usage chooses the newest snapshot that contains quota data. It only falls back to source priority when timestamps match, so an older `usage-status.json` will not hide newer usable data from another local source.
+If multiple Claude status files exist, `usage` selects the newest snapshot that contains quota data:
 
-### Codex usage
+1. `~/.claude/usage-status.json`
+2. `~/.claude/usag-status.json`, legacy fallback
+3. `~/.claude/tt-status.json`, token-tracker compatibility fallback
 
-Codex CLI doesn't expose a statusLine hook, so usage takes a different route: it scans the conversation logs Codex CLI leaves on disk (`~/.codex/sessions/*.jsonl`). Codex writes `rate_limits` data directly into each log entry — usage maps `window_minutes=300` to the CLI 5h quota and `window_minutes=10080` to the weekly quota. Today's token count and cost are summed from the token usage recorded in the same files.
+`/usage` is an interactive Claude Code command, not a stable JSON API. This project does not scrape `/usage` screen text.
 
-If Codex isn't installed or the directory doesn't exist, that part of the UI hides itself and Claude Code stats continue to work normally.
+### Codex
+
+Codex CLI does not expose a Claude-style statusLine hook, so `usage` scans:
+
+```text
+~/.codex/sessions/**/*.jsonl
+```
+
+When Codex logs contain `rate_limits`, `usage` maps windows as follows:
+
+- `window_minutes=300`: 5-hour quota
+- `window_minutes=10080`: weekly quota
+
+Today's token count and cost estimate are summed from the same session logs. If Codex is not installed, the session directory does not exist, or no `rate_limits` records exist yet, the Codex section displays empty data without affecting Claude.
+
+### Cost Estimates
+
+Usage percentages do not require network access. Cost estimates may download the public LiteLLM pricing JSON when no local cache exists, then store it at:
+
+```text
+~/.claude/pricing_cache.json
+```
+
+If the download fails, a built-in fallback price table is used. Quota percentages are unaffected.
 
 ## Requirements
 
 - macOS or Windows
-- Python 3.13
-- Claude Code installed and signed in (Codex is optional)
+- Python 3.13+
+- Claude Code installed and signed in
+- Codex CLI optional
 
-## Quick start
+Windows desktop mode requires Python with Tkinter. If Tkinter is unavailable, use Web mode.
 
-| I want to… | How |
-|-----------|-----|
-| Use it on macOS with no setup | [Download the app](#download-the-app) |
-| Use it on Windows with no setup | [Download the Windows exe](#download-the-windows-exe) |
-| Use it on Windows as a small desktop window | [Desktop mode](#desktop-mode-windows-default) |
-| Use a desktop widget URL | [Web mode](#web-mode-url--desktop-widget) |
-| Run from source | [Set up the environment](#set-up-the-environment) |
-| Preview the UI without installing | [Preview mode](#preview-mode-no-install-required) |
+## Quick Start
 
-## Download the app
-
-Go to the [GitHub Releases page](https://github.com/aqua5230/usage/releases/latest) and download the latest `usage.app.zip`. Unzip it and move `usage.app` wherever you like (e.g. `/Applications`).
-
-⚠️ Because this app is not signed with an Apple Developer certificate, **macOS Gatekeeper will block the first launch**.
-To open it: find `usage.app` in Finder → right-click → Open → confirm Open. After that, double-clicking works normally.
-
-### First launch: install the hook
-
-The first time you open usage, if Claude Code has never been wired up yet, the popover will detect the missing status file and **show an extra "立即安裝 hook" (Install hook now) button at the bottom**. Click it once — it installs the hook for you. Then **fully quit Claude Code (Cmd+Q) and re-open it**, click "Refresh now" in usage, and the numbers will appear.
-
-If the button doesn't show, usage is already reading data (e.g. you previously installed [token-tracker](https://github.com/stormzhang/token-tracker) and its status file works as a fallback) — nothing else to do.
-
-> **Fallback: install via curl**
-> If the in-app button doesn't work or you prefer the command line, paste this in Terminal:
->
-> ```bash
-> bash <(curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh)
-> ```
-
-## Download the Windows exe
-
-Go to the [GitHub Releases page](https://github.com/aqua5230/usage/releases/latest) and download `usage.exe`. Double-clicking it starts the Windows desktop widget. If SmartScreen warns about an unknown publisher, verify the file came from this project's Release page before choosing to keep or run it.
-
-## Download
+### 1. Clone
 
 ```bash
-git clone https://github.com/aqua5230/usage.git
+git clone https://github.com/yanowo/usage.git
 cd usage
 ```
 
-If you don't use git, go to the [GitHub project page](https://github.com/aqua5230/usage), click the green **Code → Download ZIP**, then `cd` into the unzipped folder.
+For the original upstream project, use [aqua5230/usage](https://github.com/aqua5230/usage).
 
-## Set up the environment
+### 2. Create The Environment
+
+macOS:
 
 ```bash
 python3 -m venv .venv
@@ -121,216 +127,318 @@ py -3.13 -m venv .venv
 pip install -e .
 ```
 
-This creates an isolated Python environment (`.venv`) for the project, activates it, and installs usage plus its dependencies into it.
+### 3. Install The Claude Code Hook
 
-## First install (wire up the Claude Code hook — source mode only)
-
-> Using the .app? Just click the "立即安裝 hook" button in the popover on first launch instead — you don't need this section. The steps below are for developers running usage from source.
-
-This single command does two things: copies the hook script into `~/.claude/`, and updates your Claude Code settings to point at it.
+Run this once when using the source tree:
 
 ```bash
-source .venv/bin/activate
 python3 main.py --setup
 ```
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
 python main.py --setup
 ```
 
-**Restart Claude Code once after running this** so it re-reads `~/.claude/settings.json` and refreshes its status line. That refresh is when usage data first lands on disk.
+After setup, fully restart Claude Code so it reloads `~/.claude/settings.json`. The first statusLine refresh after restart is when `~/.claude/usage-status.json` gets updated.
 
-What `--setup` does in detail:
-
-- Copies `usage_statusline.py` to `~/.claude/usage-statusline.py`.
-- Points `statusLine` in `~/.claude/settings.json` at that hook and sets `refreshInterval: 1`, so Claude Code keeps refreshing the status file while idle.
-- If you already had a custom `statusLine`, it is backed up to `settings.usage.previousStatusLine` so nothing is overwritten.
-
-To uninstall:
+Uninstall the hook:
 
 ```bash
 python3 main.py --unsetup
 ```
 
-`--unsetup` restores your original statusLine and removes the hook and `~/.claude/usage-status.json`.
-
-## Run modes
-
-### Desktop mode (Windows default)
-
-Windows does not have the macOS menu bar API, so usage starts a small always-on-top draggable window by default. The window can switch between `All / Claude / Codex` and refreshes usage on a timer.
-
-The desktop widget supports:
-
-- dragging the upper-left grip to resize the window, so the control is less likely to be covered by other desktop widgets
-- the `Alpha` slider for opacity
-- `Pinned / Pin` to toggle always-on-top
-- `Mini` mode, which shrinks the widget to one `Codex` or `Claude` `5h / Weekly` readout plus the last update time
-- `Style` switching between `Classic / Taiwan / Matrix / ECG / Minimal / Sketch`, aligned with the macOS widget templates
+Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-python main.py
+python main.py --unsetup
 ```
 
-You can also request desktop mode explicitly:
+## Run Modes
 
-```powershell
-python main.py --desktop
-```
+### macOS Menu Bar
 
-To launch without keeping a PowerShell window open, create a Windows shortcut that uses `pythonw.exe`, for example:
-
-```powershell
-E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
-```
-
-### Web mode (URL / desktop widget)
-
-If you want to embed usage in a desktop widget that renders a web URL, start web mode manually.
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python main.py --web
-```
-
-The server prints these entry points:
-
-- `http://127.0.0.1:8765/` — the main page, with product, theme, and layout switching
-- `http://127.0.0.1:8765/?layout=compact` — compact layout on the same main page
-- `http://127.0.0.1:8765/?layout=horizontal` — wide horizontal layout on the same main page
-- `http://127.0.0.1:8765/api/usage` — JSON API
-
-For a desktop widget, use `http://127.0.0.1:8765/?layout=compact` or `http://127.0.0.1:8765/?layout=horizontal`. To change the port:
-
-```powershell
-python main.py --web --port 9000
-```
-
-The main page has `All / Claude / Codex`, `Full / Compact / Wide`, and `Dark / Light` controls in the top-right corner. Choices are saved in browser localStorage. You can also pin them in the URL:
-
-- `http://127.0.0.1:8765/?product=claude`
-- `http://127.0.0.1:8765/?product=codex`
-- `http://127.0.0.1:8765/?layout=compact`
-- `http://127.0.0.1:8765/?layout=horizontal`
-
-Dark mode is available from the `Dark / Light` toggle, and from URL parameters:
-
-- `http://127.0.0.1:8765/?theme=dark`
-- `http://127.0.0.1:8765/?layout=horizontal&theme=light`
-
-### Menu bar mode (macOS default)
-
-Stays in the macOS menu bar with a short percentage readout. Click it to open the full popover.
+macOS defaults to the menu bar app:
 
 ```bash
 source .venv/bin/activate
 python3 main.py
 ```
 
-- **Menu bar format:** `🐾 37%`. If Codex usage is also detected, a Codex suffix is appended: `🐾 37% · 📜 10%`.
+The status item appears in the top-right menu bar. Click it to open the full popover with Claude / Codex quota rows, rate, sync status, today's tokens, and cost estimate.
 
-  <img src="docs/menubar.png" alt="menu bar display" width="240">
+Built-in panels:
 
-- **Click the icon to expand the popover.** It has three sections:
-  1. Two cards for Claude Code and Codex, each with `5h` and `Weekly` progress bars and a reset countdown.
-  2. A footer card showing current rate, sync status, and today's token usage and cost estimate (Claude uses the actual `costUSD` from its log when available; Codex cost is estimated from token count × pricing table).
-  3. Two buttons: "Refresh now" and "Quit".
-- **Switch panel** (v0.3.0+): a `⇄ Switch` button sits in the Claude Code card's top-right corner (the Taiwan panel embeds it in the top header bar instead) and opens a menu of available panel styles. Six are built in:
-  - **Default**: the original two-card + footer layout.
-  - **Taiwan usage monitor**: a red-on-white themed variant with a top header bar containing the TAIWAN flag icon.
-  - **Matrix / 駭客任務** (v0.3.1+): animated digital-rain panel with cascading katakana characters, Matrix-green palette, and terminal bracket–style buttons.
-  - **ECG**: medical-monitor style with two live ECG waveform channels — LEAD A for Claude Code and LEAD B for Codex. Waveform amplitude scales with quota usage; higher burn rate produces more intense peaks.
-  - **Minimal** (v0.3.3+): dark minimal panel inspired by Linear / Raycast. Near-black background, rounded cards, accent-coloured progress bars (Claude warm-orange / Codex cyan). Footer card presents rate, status, and today's cost as a two-column label + value layout.
-  - **手繪 / Sketch** (v0.3.4+): hand-drawn Excalidraw-style panel. Coral-pink background, off-white cards with thick black borders, corner pin decorations. Claude in deep orange-red, Codex in deep teal.
-
-  <p align="center">
-    <img src="docs/popover.png" alt="default panel" width="180">
-    <img src="docs/popover-taiwan.png" alt="Taiwan usage monitor panel" width="180">
-    <img src="docs/popover-matrix.png" alt="Matrix panel" width="180">
-    <img src="docs/popover-ecg.png" alt="ECG panel" width="180">
-    <img src="docs/popover-minimal.png" alt="Minimal panel" width="180">
-    <img src="docs/popover-sketch.png" alt="Sketch panel" width="180">
-  </p>
-
-  Your choice is persisted via `NSUserDefaults`, so the last selected panel survives restarts.
-- **Permissions:** on first launch, macOS may ask whether to allow background execution. Click Allow.
-
-### Terminal TUI mode
-
-If you'd rather stay in a terminal, run the Rich Live TUI — everything draws inside your terminal window via repeated text repaints. You get a pixel-art Claude logo, a spinner, a rotating set of Claude Code's playful loading phrases, and the same two progress bars as the menu bar popover:
+- **Default**: two quota cards and a footer status card.
+- **Taiwan usage monitor**: red-and-white theme with a Taiwan header.
+- **Matrix**: black-and-green digital-rain animation.
+- **ECG**: medical monitor style with live Claude / Codex waveforms.
+- **Minimal**: dark minimal UI.
+- **Sketch**: hand-drawn Excalidraw-style UI.
 
 <p align="center">
-  <img src="docs/tui.png" alt="usage TUI mode" width="480">
+  <img src="docs/popover.png" alt="Default panel" width="180">
+  <img src="docs/popover-taiwan.png" alt="Taiwan usage monitor panel" width="180">
+  <img src="docs/popover-matrix.png" alt="Matrix panel" width="180">
+  <img src="docs/popover-ecg.png" alt="ECG panel" width="180">
+  <img src="docs/popover-minimal.png" alt="Minimal panel" width="180">
+  <img src="docs/popover-sketch.png" alt="Sketch panel" width="180">
 </p>
 
+If you use a packaged `.app`, macOS Gatekeeper may block the first launch. In Finder, Ctrl-click `usage.app`, choose Open, then confirm.
+
+### Windows Desktop
+
+Windows defaults to the desktop widget:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py
+```
+
+You can also request it explicitly:
+
+```powershell
+python main.py --desktop
+```
+
+Desktop widget features:
+
+- `All / Claude / Codex` product switching
+- `Refresh` manual refresh
+- `Pinned / Pin` topmost toggle
+- `Alpha` opacity control
+- `Mini` single-product compact card
+- `_` status-strip mode; the strip is draggable and supports external monitors
+- `Style` switching across Classic / Taiwan / Matrix / ECG / Minimal / Sketch
+
+To launch without keeping a PowerShell window open, create a shortcut that uses `pythonw.exe`:
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+```
+
+Replace the path with your actual checkout path.
+
+### Web
+
+Web mode starts a local HTTP server:
+
 ```bash
-source .venv/bin/activate
+python3 main.py --web
+```
+
+Windows PowerShell:
+
+```powershell
+python main.py --web
+```
+
+Default URLs:
+
+- `http://127.0.0.1:8765/`
+- `http://127.0.0.1:8765/?layout=compact`
+- `http://127.0.0.1:8765/?layout=horizontal`
+- `http://127.0.0.1:8765/api/usage`
+
+Run with explicit host and port:
+
+```bash
+python3 main.py --web --host 127.0.0.1 --port 8765
+```
+
+To expose it to other devices on the same LAN:
+
+```bash
+python3 main.py --web --host 0.0.0.0 --port 8765
+```
+
+Check your firewall and network security before exposing it. The default bind address is `127.0.0.1`, which only accepts local connections.
+
+Supported URL parameters:
+
+- `?product=all`
+- `?product=claude`
+- `?product=codex`
+- `?layout=full`
+- `?layout=compact`
+- `?layout=horizontal`
+- `?theme=dark`
+- `?theme=light`
+
+For desktop widgets, start with:
+
+```text
+http://127.0.0.1:8765/?layout=compact
+```
+
+or the wide layout:
+
+```text
+http://127.0.0.1:8765/?layout=horizontal
+```
+
+### TUI
+
+Terminal UI:
+
+```bash
 python3 main.py --tui
 ```
 
+Windows PowerShell:
+
+```powershell
+python main.py --tui
+```
+
+<p align="center">
+  <img src="docs/tui.png" alt="usage TUI" width="480">
+</p>
+
 Press `Ctrl+C` to exit.
 
-## Auto-start on login
+## Mock Preview
 
-A LaunchAgent (the macOS service that handles "what should start when this user logs in") makes usage start automatically.
-
-1. **Install:**
-   ```bash
-   ./scripts/install-launchagent.sh
-   ```
-   This drops a plist into `~/Library/LaunchAgents/` and loads usage immediately.
-
-2. **Manual start (for testing):**
-   ```bash
-   launchctl start com.lollapalooza.usage
-   ```
-
-3. **Logs:**
-   - stdout: `~/Library/Logs/usage/usage.log`
-   - stderr: `~/Library/Logs/usage/usage.err.log`
-
-4. **Uninstall:**
-   ```bash
-   ./scripts/uninstall-launchagent.sh
-   ```
-
-## Preview mode (no install required)
-
-If you haven't installed the hook yet, or you just want to see what the UI looks like, run with fake data:
+Use `--mock` to preview UI without installing the hook:
 
 ```bash
-# Menu bar preview
 python3 main.py --mock
-
-# Web preview (Windows / browser / widget)
 python3 main.py --web --mock
-
-# Desktop preview (Windows mini window)
-python main.py --desktop --mock
-
-# TUI preview
+python3 main.py --desktop --mock
 python3 main.py --tui --mock
 ```
 
-## Options
+Windows PowerShell:
 
-- `--setup` / `--unsetup` — install or remove the Claude Code statusLine hook.
-- `--desktop` — start the cross-platform desktop mini window (default on Windows).
-- `--web` — start the cross-platform web UI.
-- `--host HOST` — web server bind address, default `127.0.0.1`.
-- `--port PORT` — web server port, default `8765`.
-- `--tui` — force terminal TUI mode (no menu bar).
-- `--interval N` — how often (seconds) the UI re-reads the status file. Minimum 30, default 60.
-- `--mock` — use fake data; don't read any status file.
-- `--force-group {0,1,2,3}` — force a specific rate group (TUI only).
+```powershell
+python main.py --desktop --mock
+python main.py --web --mock
+```
 
-## Debug
+## CLI Options
 
-To see internal warnings (e.g. swallowed `OSError`s), set:
+| Option | Description |
+|--------|-------------|
+| `--setup` | Install the Claude Code statusLine hook |
+| `--unsetup` | Remove the hook and restore the previous statusLine setting |
+| `--desktop` | Start the desktop widget |
+| `--web` | Start the Web UI and JSON API |
+| `--host HOST` | Web bind address, default `127.0.0.1` |
+| `--port PORT` | Web port, default `8765` |
+| `--tui` | Start the terminal TUI |
+| `--interval N` | Data refresh interval, minimum 30 seconds, default 60 |
+| `--mock` | Use fake data for previews |
+| `--force-group {0,1,2,3}` | TUI test option; forces the rate group |
+
+Platform defaults:
+
+- Windows: `python main.py` starts desktop mode.
+- macOS: `python3 main.py` starts menu bar mode.
+- Other platforms: `python3 main.py` falls back to Web mode.
+
+## Start On Login
+
+### macOS LaunchAgent
+
+```bash
+./scripts/install-launchagent.sh
+```
+
+Logs:
+
+```text
+~/Library/Logs/usage/usage.log
+~/Library/Logs/usage/usage.err.log
+```
+
+Uninstall:
+
+```bash
+./scripts/uninstall-launchagent.sh
+```
+
+### Windows
+
+Create a shortcut in the Windows Startup folder:
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+```
+
+For Web mode:
+
+```powershell
+E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --web
+```
+
+## Packaging
+
+### macOS `.app`
+
+```bash
+./scripts/build_app.sh
+```
+
+Output:
+
+```text
+dist/usage.app
+```
+
+### Windows `.exe`
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+```
+
+Output:
+
+```text
+dist\usage.exe
+```
+
+## Development
+
+Install development tools:
+
+```bash
+pip install pytest ruff mypy
+```
+
+Run checks:
+
+```bash
+pytest
+ruff check .
+mypy .
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\ruff.exe check .
+.\.venv\Scripts\mypy.exe .
+```
+
+## Troubleshooting
+
+| Problem | Likely Cause | Fix |
+|---------|--------------|-----|
+| Claude shows `--` | Hook not installed, or Claude Code has not refreshed statusLine yet | Run `python main.py --setup`, restart Claude Code, then wait for one refresh |
+| Claude shows 0%, but `/usage` looks non-zero | Local `usage-status.json` is still an old snapshot, or the current IDE entrypoint is not refreshing statusLine | Restart native Claude Code and confirm `~/.claude/settings.json` contains `refreshInterval: 1` |
+| Status says stale / not updated | Claude Code has not written a fresh statusLine JSON for a while | Open Claude Code and trigger one response or statusLine refresh |
+| Codex section has no data | No `~/.codex/sessions`, or logs do not contain `rate_limits` yet | Run one Codex conversation, then refresh |
+| Windows desktop widget does not appear | Tkinter is unavailable, or the environment cannot open a GUI | Use `python main.py --web`, or install Python with Tkinter |
+| Web URL does not open | Server is not running, port is occupied, or host does not match | Run `python main.py --web` again and use the printed URL |
+| Today's cost is `$0.00` | No cost record, pricing cache failed, or model name cannot be mapped | Delete `~/.claude/pricing_cache.json` and refresh, or run with `USAGE_DEBUG=1` |
+| macOS `.app` will not open | Gatekeeper blocked the unsigned app | Ctrl-click `usage.app` in Finder, choose Open, then confirm |
+
+## Debugging
+
+Enable debug logging:
 
 ```bash
 USAGE_DEBUG=1 python3 main.py
@@ -339,54 +447,42 @@ USAGE_DEBUG=1 python3 main.py
 Windows PowerShell:
 
 ```powershell
-$env:USAGE_DEBUG="1"; python main.py --web
+$env:USAGE_DEBUG="1"
+python main.py --web
 ```
 
-## Behaviour notes
-
-- usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).
-- When Claude Code isn't running, the status file isn't updated — but actual usage isn't changing either (until reset time), so the displayed value is still accurate. After reset time passes, it auto-resets to zero.
-- If the status file hasn't been updated for more than 6 hours, the status line notes "status file is N minutes stale, numbers may be out of date."
-
-## Troubleshooting
-
-The "Fix" column distinguishes three kinds of users — find yours first:
-
-- **.app users** — downloaded `usage.app.zip` from GitHub Releases, unzipped, dragged `usage.app` to `/Applications`, double-click to launch like any Mac app. No Terminal, no Python.
-- **Desktop / Windows users** — run `python main.py` or `python main.py --desktop` from source to open a small desktop window.
-- **Web / widget users** — run `python main.py --web` from source, then open the URL in a browser or desktop widget.
-- **LaunchAgent users** — cloned the source and ran `./scripts/install-launchagent.sh` so macOS auto-starts usage on login.
-- **Source users** — cloned the source and run `python3 main.py` manually in Terminal each time.
-
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
-| `python main.py` on Windows does not open a native window | Tkinter is unavailable, or the current environment cannot open a GUI | Use `python main.py --web`, or install Python with Tkinter support |
-| Desktop widget cannot open the URL | The usage web server is not running, or the port changed/is occupied | Run `python main.py --web` again and copy the printed URL. If you changed the port, update the widget URL too |
-| Accidentally hit "Quit", paw icon disappeared from the menu bar | "Quit" fully terminates the usage process; you have to relaunch it | **.app users**: press `Cmd+Space` for Spotlight, type `usage`, hit Enter; or double-click `usage.app` from `/Applications`. **LaunchAgent users**: run `launchctl start com.lollapalooza.usage` in Terminal. **Source users**: run `python3 main.py` in Terminal again |
-| Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |
-| Codex section is empty | `~/.codex/sessions/` doesn't exist or has no `rate_limits` events yet | Run a Codex conversation to generate log entries |
-| Today's cost shows $0.00 | Model name doesn't match the pricing table, or pricing download/cache failed | Delete `~/.claude/pricing_cache.json` to force a re-fetch; or run with `USAGE_DEBUG=1` for details |
-| App won't open (blocked by macOS) | Gatekeeper blocks unsigned apps | Finder → find `usage.app` → right-click → Open → confirm Open |
-
-## Build a .app bundle (optional)
-
-If you want to launch usage by double-clicking instead of opening a terminal, build a native macOS app bundle:
+Useful checks:
 
 ```bash
-./scripts/build_app.sh
+cat ~/.claude/settings.json
+cat ~/.claude/usage-status.json
 ```
 
-The output is `dist/usage.app`. Double-click it or run `open dist/usage.app`.
-
-Each GitHub Release build (push a `v*` tag) automatically builds the app in CI and attaches `usage.app.zip` to the Release page.
-
-## Build a Windows exe
-
-On Windows, package a single-file exe with PyInstaller:
+Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+Get-Content -Raw $env:USERPROFILE\.claude\settings.json
+Get-Content -Raw $env:USERPROFILE\.claude\usage-status.json
 ```
 
-The output is `dist\usage.exe`. The `Windows exe` GitHub Actions workflow also builds it on `v*` tags or manual dispatch, uploads `usage.exe` as an artifact, and attaches it to the Release for tag builds.
+## Privacy And Network
+
+- Does not read macOS Keychain.
+- Does not call the Anthropic API.
+- Does not call the OpenAI API.
+- Claude quota comes from Claude Code statusLine JSON.
+- Codex quota comes from local Codex session logs.
+- The only expected network access is downloading the public LiteLLM pricing JSON for cost estimates, which is cached.
+- Web mode binds to `127.0.0.1` by default.
+
+## Credits, License, And Upstream
+
+This fork is based on the original `usage` project and extends it with Windows desktop mode, Web server mode, cross-platform CLI routing, Windows packaging, and multi-monitor widget behavior.
+
+| Item | Link |
+|------|------|
+| Original author / upstream project | [lollapalooza · aqua5230/usage](https://github.com/aqua5230/usage) |
+| This fork | [yanowo/usage](https://github.com/yanowo/usage) |
+| License in this fork | [MIT License](LICENSE) |
+
+> If you fork, modify, or redistribute this project, keep this attribution and the upstream project link.

@@ -6,12 +6,39 @@
 
 ## Unreleased
 
+### 新增
+- **Windows Desktop 模式**：新增 `usage_desktop.py`，提供 Tkinter 桌面小工具、`All / Claude / Codex` 切換、置頂、透明度、Mini 模式、縮到狀態條、系統匣整合與主題切換。
+- **Web 模式**：新增 `usage_web.py`，提供本機 HTTP UI、`/api/usage` JSON API、`Full / Compact / Wide` 版面、產品篩選與亮暗色主題。
+- **跨平台 CLI 路由**：`main.py` 新增 `--desktop`、`--web`、`--host`、`--port`；Windows 預設啟動 Desktop，非 macOS / Windows 環境 fallback 到 Web。
+- **Windows 打包**：新增 `scripts/build_windows_exe.ps1` 與 `.github/workflows/windows-exe.yml`，並在 `pyproject.toml` 加入 Windows GUI / system tray 依賴。
+- **共享狀態模型**：新增 `usage_state.py`，把 quota row、狀態文字、今日 token / cost 與 Web / Desktop / TUI 共用的資料整形集中管理。
+- **macOS 原生面板**：保留並延伸 Python / AppKit 原生面板系統，包含 Classic、Taiwan、Matrix、ECG、Minimal、Sketch 六種主題。
+
+### 變更
+- `README.md` 重新整理為 macOS / Windows / Web 三條主線，補齊 hook、資料來源、CLI、打包、除錯、隱私與上游 attribution。
+- `README.en.md` 同步改寫為與中文版一致的英文版內容。
+- README badge 與 clone 指令改指向本 fork `yanowo/usage`，並在底部以表格保留原作者 / 上游專案連結。
+- `codex_loader.py` 與相關測試強化 Codex session 掃描、`window_minutes` 對應、壞 JSONL 容錯與 token / cost 聚合。
+- `pricing.py` 保留 pricing cache source / timestamp 與 fallback TTL 行為，讓離線啟動後網路恢復時可更新成本估算。
+- `setup_hook.py` 在 Windows 優先使用 `py -3` launcher，並用 forward slash path 避免 Claude Code shell 解析 Windows 反斜線失敗。
+
 ### 修正
 - Claude 狀態檔讀取改選「最新且有 quota 資料」的快照，避免舊 `usage-status.json` 擋住較新的 legacy / token-tracker 用量。
 - `setup_hook.py` 與 `scripts/install-hook.sh` 寫入 Claude Code 官方支援的 `statusLine.refreshInterval: 1`，讓原生 Claude Code 閒置時也會持續刷新本地狀態檔。
 - macOS Minimal / 手繪面板在顯示「安裝 Hook」時改成全寬按鈕列，避免控制按鈕互擠。
 - Windows 狀態條小工具拖曳邊界改用所有螢幕的 work area，外接螢幕或負座標螢幕不再被 primary 螢幕邊界卡住。
 - Windows 桌面小工具左上角縮放改為合併高頻滑鼠事件，降低調整大小時的卡頓與延遲。
+
+### 測試
+- 新增 / 更新 Desktop、Web、State、Setup hook、Claude usage client、Codex loader、Pricing、Panel registry 等測試，涵蓋 Windows 多螢幕 work area、Web payload、狀態整形與 hook 安裝行為。
+- 全專案目前可通過 `pytest`、`ruff check .`、`mypy .`。
+
+### 與上游 v0.6.9 的主要差異
+- 本 fork 聚焦 **macOS + Windows + Web** 三平台；上游目前仍以 macOS menu bar app 為主。
+- 本 fork 保留 Python / AppKit 原生 panel 實作；上游 v0.6.x 已轉向 `assets/panels/*.html` / `panels/web_panel.py` 的 HTML panel 架構。
+- 本 fork 新增 Windows Desktop、Windows status strip、Windows exe 打包與 Web server；這些不是上游 v0.6.9 的主要功能面。
+- 本 fork 目前未合入上游 v0.6.x 的 i18n JSON、Launch at Login toggle、burn-rate forecast warning、Cloud Observation / Newspaper / Windows 95 HTML panels。
+- 本 fork 的 `LICENSE` 仍為目前分支內的 MIT License；若未來合併上游 v0.6.x AGPL-3.0 之後的程式碼，需要另行檢查授權相容性。
 
 ## 0.3.3 — 2026-05-19
 

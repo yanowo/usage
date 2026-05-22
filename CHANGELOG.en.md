@@ -7,12 +7,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+### Added
+- **Windows Desktop mode**: added `usage_desktop.py` with a Tkinter desktop widget, `All / Claude / Codex` filtering, topmost mode, opacity control, Mini mode, status-strip mode, system tray integration, and theme switching.
+- **Web mode**: added `usage_web.py` with a local HTTP UI, `/api/usage` JSON API, `Full / Compact / Wide` layouts, product filtering, and light/dark themes.
+- **Cross-platform CLI routing**: `main.py` now supports `--desktop`, `--web`, `--host`, and `--port`; Windows defaults to Desktop mode, and non-macOS / non-Windows platforms fall back to Web mode.
+- **Windows packaging**: added `scripts/build_windows_exe.ps1` and `.github/workflows/windows-exe.yml`, plus Windows GUI / system tray dependencies in `pyproject.toml`.
+- **Shared view-state model**: added `usage_state.py` to centralize quota rows, status text, today's token / cost text, and reusable state shaping for Web / Desktop / TUI.
+- **Native macOS panels**: kept and extended the Python / AppKit native panel system with Classic, Taiwan, Matrix, ECG, Minimal, and Sketch themes.
+
+### Changed
+- `README.md` was rewritten around the current macOS / Windows / Web surfaces, with updated hook, data-source, CLI, packaging, debugging, privacy, and upstream-attribution sections.
+- `README.en.md` was rewritten to match the new Traditional Chinese README structure.
+- README badges and clone commands now point to this fork, `yanowo/usage`, while the original author / upstream project is preserved in a dedicated credits table.
+- `codex_loader.py` and its tests now cover stronger Codex session scanning, `window_minutes` mapping, bad JSONL tolerance, and token / cost aggregation.
+- `pricing.py` keeps pricing-cache source / timestamp metadata and fallback TTL behavior, so cost estimates can recover after an offline startup.
+- `setup_hook.py` now prefers the Windows `py -3` launcher and emits forward-slash paths so Claude Code shell parsing does not break on Windows backslashes.
+
 ### Fixed
 - Claude status file loading now chooses the newest snapshot that contains quota data, so an old `usage-status.json` no longer hides newer usable legacy / token-tracker usage.
 - `setup_hook.py` and `scripts/install-hook.sh` now write Claude Code's official `statusLine.refreshInterval: 1`, keeping the local status file refreshed while native Claude Code is idle.
 - macOS Minimal / Sketch panels now use a full-width install-hook row when needed, preventing cramped footer controls.
 - Windows status-strip dragging now clamps against the combined work area across all monitors, so external or negative-coordinate displays are reachable.
 - Windows desktop widget resizing now coalesces high-frequency mouse motion events to reduce lag while resizing.
+
+### Tests
+- Added / updated Desktop, Web, State, Setup hook, Claude usage client, Codex loader, Pricing, and Panel registry tests, including Windows multi-monitor work-area behavior, Web payloads, state shaping, and hook installation behavior.
+- The project currently passes `pytest`, `ruff check .`, and `mypy .`.
+
+### Main Differences From Upstream v0.6.9
+- This fork focuses on **macOS + Windows + Web**; upstream currently remains primarily a macOS menu bar app.
+- This fork keeps the Python / AppKit native panel implementation; upstream v0.6.x has moved toward the `assets/panels/*.html` / `panels/web_panel.py` HTML panel architecture.
+- This fork adds Windows Desktop, Windows status strip, Windows exe packaging, and a Web server; these are not upstream v0.6.9's main feature surfaces.
+- This fork has not merged upstream v0.6.x's i18n JSON, Launch at Login toggle, burn-rate forecast warning, or Cloud Observation / Newspaper / Windows 95 HTML panels.
+- This fork's `LICENSE` remains the MIT License present in this branch. If upstream v0.6.x AGPL-3.0 code is merged later, license compatibility must be reviewed separately.
 
 ## 0.3.3 — 2026-05-19
 
