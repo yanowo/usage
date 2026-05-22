@@ -167,29 +167,57 @@ def test_statusline_command_quotes_paths_with_spaces(
         assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
 
 
-def test_statusline_command_uses_windows_quoting(
+def test_statusline_command_uses_windows_forward_slashes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    spaced_dir = tmp_path / "claude code widget"
-    spaced_dir.mkdir()
-    python = spaced_dir / "python.exe"
-    hook = spaced_dir / "usage-statusline.py"
+    hook = Path("C:\\Users\\Yan\\.claude\\usage-statusline.py")
 
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
     monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
-    monkeypatch.setattr(shutil, "which", lambda name: str(python) if name == "python" else None)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: "C:\\Windows\\py.exe" if name == "py" else None,
+    )
 
-    assert setup_hook._statusline_command_parts() == [str(python), str(hook)]
-    assert setup_hook._statusline_command() == f'"{python}" "{hook}"'
+    assert setup_hook._statusline_command_parts() == [
+        "py",
+        "-3",
+        "C:/Users/Yan/.claude/usage-statusline.py",
+    ]
+    assert setup_hook._statusline_command() == "py -3 C:/Users/Yan/.claude/usage-statusline.py"
+
+
+def test_statusline_command_quotes_windows_paths_with_spaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hook = Path("C:\\Users\\Yan Name\\.claude\\usage-statusline.py")
+
+    monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
+    monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: "C:\\Windows\\py.exe" if name == "py" else None,
+    )
+
+    assert (
+        setup_hook._statusline_command()
+        == "py -3 'C:/Users/Yan Name/.claude/usage-statusline.py'"
+    )
 
 
 def test_statusline_command_prefers_windows_launcher(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     launcher = tmp_path / "py.exe"
-    hook = tmp_path / "usage-statusline.py"
+    hook = Path("C:\\Users\\Yan\\.claude\\usage-statusline.py")
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
     monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
     monkeypatch.setattr(shutil, "which", lambda name: str(launcher) if name == "py" else None)
 
-    assert setup_hook._statusline_command_parts() == [str(launcher), "-3", str(hook)]
+    assert setup_hook._statusline_command_parts() == [
+        "py",
+        "-3",
+        "C:/Users/Yan/.claude/usage-statusline.py",
+    ]
