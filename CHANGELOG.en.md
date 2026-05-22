@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Claude status file loading now chooses the newest snapshot that contains quota data, so an old `usage-status.json` no longer hides newer usable legacy / token-tracker usage.
 - `setup_hook.py` and `scripts/install-hook.sh` now write Claude Code's official `statusLine.refreshInterval: 1`, keeping the local status file refreshed while native Claude Code is idle.
+- macOS Minimal / Sketch panels now use a full-width install-hook row when needed, preventing cramped footer controls.
+- Windows status-strip dragging now clamps against the combined work area across all monitors, so external or negative-coordinate displays are reachable.
+- Windows desktop widget resizing now coalesces high-frequency mouse motion events to reduce lag while resizing.
 
 ## 0.3.3 — 2026-05-19
 

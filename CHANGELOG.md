@@ -9,6 +9,9 @@
 ### 修正
 - Claude 狀態檔讀取改選「最新且有 quota 資料」的快照，避免舊 `usage-status.json` 擋住較新的 legacy / token-tracker 用量。
 - `setup_hook.py` 與 `scripts/install-hook.sh` 寫入 Claude Code 官方支援的 `statusLine.refreshInterval: 1`，讓原生 Claude Code 閒置時也會持續刷新本地狀態檔。
+- macOS Minimal / 手繪面板在顯示「安裝 Hook」時改成全寬按鈕列，避免控制按鈕互擠。
+- Windows 狀態條小工具拖曳邊界改用所有螢幕的 work area，外接螢幕或負座標螢幕不再被 primary 螢幕邊界卡住。
+- Windows 桌面小工具左上角縮放改為合併高頻滑鼠事件，降低調整大小時的卡頓與延遲。
 
 ## 0.3.3 — 2026-05-19
 

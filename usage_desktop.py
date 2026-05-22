@@ -39,6 +39,7 @@ STRIP_MIN_HEIGHT = 82
 STRIP_MARGIN = 8
 STRIP_BAR_WIDTH = 44
 STRIP_BAR_HEIGHT = 5
+RESIZE_THROTTLE_SECONDS = 1 / 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,6 +372,17 @@ def clamp_strip_position(
     )
 
 
+def merge_work_areas(areas: list[WorkArea] | tuple[WorkArea, ...]) -> WorkArea | None:
+    if not areas:
+        return None
+    return WorkArea(
+        left=min(area.left for area in areas),
+        top=min(area.top for area in areas),
+        right=max(area.right for area in areas),
+        bottom=max(area.bottom for area in areas),
+    )
+
+
 def load_tray_modules() -> tuple[Any, Any, Any] | None:
     try:
         pystray_module = importlib.import_module("pystray")
@@ -400,6 +412,58 @@ def windows_work_area() -> WorkArea | None:
     ):
         return None
     return WorkArea(rect.left, rect.top, rect.right, rect.bottom)
+
+
+def windows_virtual_work_area() -> WorkArea | None:
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return windows_work_area()
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return windows_work_area()
+
+    class MonitorInfo(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("rcMonitor", wintypes.RECT),
+            ("rcWork", wintypes.RECT),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
+    areas: list[WorkArea] = []
+
+    def collect_monitor(
+        monitor: Any,
+        _hdc: Any,
+        _rect: Any,
+        _data: Any,
+    ) -> bool:
+        info = MonitorInfo()
+        info.cbSize = ctypes.sizeof(MonitorInfo)
+        if windll.user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            areas.append(
+                WorkArea(
+                    info.rcWork.left,
+                    info.rcWork.top,
+                    info.rcWork.right,
+                    info.rcWork.bottom,
+                )
+            )
+        return True
+
+    callback_type = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.RECT),
+        wintypes.LPARAM,
+    )
+    callback = callback_type(collect_monitor)
+    if not windll.user32.EnumDisplayMonitors(0, None, callback, 0):
+        return windows_work_area()
+    return merge_work_areas(areas) or windows_work_area()
 
 
 def run_app(*, mock: bool = False, interval: int = 60) -> None:
@@ -444,6 +508,9 @@ class DesktopUsageApp:
         self.last_codex_poll = 0.0
         self.drag_start: tuple[int, int] | None = None
         self.resize_start: tuple[int, int, int, int, int, int] | None = None
+        self.pending_resize_geometry: str | None = None
+        self.resize_after_id: str | None = None
+        self.last_resize_apply = 0.0
 
         self.root.title("usage")
         self.root.geometry(f"{DEFAULT_WIDTH}x{DEFAULT_HEIGHT}+80+80")
@@ -726,10 +793,42 @@ class DesktopUsageApp:
             min_width=min_width,
             min_height=min_height,
         )
-        self.root.geometry(f"{width}x{height}+{x}+{y}")
+        self._queue_resize_geometry(f"{width}x{height}+{x}+{y}")
 
     def _end_resize(self, _event: Any) -> None:
+        if self.resize_after_id is not None:
+            with suppress(tk.TclError):
+                self.root.after_cancel(self.resize_after_id)
+            self.resize_after_id = None
+        self._flush_queued_resize()
         self.resize_start = None
+
+    def _queue_resize_geometry(self, geometry: str) -> None:
+        if self.resize_after_id is not None:
+            self.pending_resize_geometry = geometry
+            return
+        now = time.monotonic()
+        if now - self.last_resize_apply >= RESIZE_THROTTLE_SECONDS:
+            self._apply_resize_geometry(geometry)
+            return
+        self.pending_resize_geometry = geometry
+        if self.resize_after_id is None:
+            delay = max(
+                1,
+                round((RESIZE_THROTTLE_SECONDS - (now - self.last_resize_apply)) * 1000),
+            )
+            self.resize_after_id = self.root.after(delay, self._flush_queued_resize)
+
+    def _flush_queued_resize(self) -> None:
+        self.resize_after_id = None
+        geometry = self.pending_resize_geometry
+        self.pending_resize_geometry = None
+        if geometry is not None:
+            self._apply_resize_geometry(geometry)
+
+    def _apply_resize_geometry(self, geometry: str) -> None:
+        self.root.geometry(geometry)
+        self.last_resize_apply = time.monotonic()
 
     def _minimum_size(self) -> tuple[int, int]:
         return (
@@ -1038,6 +1137,7 @@ class DesktopUsageApp:
         start_x, start_y, start_window_x, start_window_y = self.strip_drag_start
         width = self.strip_window.winfo_width()
         height = self.strip_window.winfo_height()
+        work_area = self._strip_drag_work_area()
         x, y = clamp_strip_position(
             start_window_x + int(event.x_root) - start_x,
             start_window_y + int(event.y_root) - start_y,
@@ -1045,10 +1145,13 @@ class DesktopUsageApp:
             self.root.winfo_screenheight(),
             width,
             height,
-            windows_work_area(),
+            work_area,
         )
         self.strip_custom_position = (x, y)
         self.strip_window.geometry(f"+{x}+{y}")
+
+    def _strip_drag_work_area(self) -> WorkArea | None:
+        return windows_virtual_work_area() or windows_work_area()
 
     def _update_status_strip(self) -> None:
         if self.strip_window is None or self.strip_rows_frame is None:
@@ -1124,7 +1227,7 @@ class DesktopUsageApp:
                 self.root.winfo_screenheight(),
                 width,
                 height,
-                windows_work_area(),
+                self._strip_drag_work_area(),
             )
             self.strip_custom_position = (x, y)
         self.strip_window.geometry(f"{width}x{height}+{x}+{y}")

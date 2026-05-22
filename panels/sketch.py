@@ -22,7 +22,12 @@ from AppKit import (
 )
 from Foundation import NSMutableDictionary, NSString
 
-from panels.base import POPOVER_WIDTH, fill_rounded_rect, stroke_rounded_rect
+from panels.base import (
+    INSTALL_BUTTON_EXTRA_HEIGHT,
+    POPOVER_WIDTH,
+    fill_rounded_rect,
+    stroke_rounded_rect,
+)
 
 if TYPE_CHECKING:
     from menubar import PopoverState, QuotaRowState
@@ -254,17 +259,20 @@ class SketchContentView(NSView):
         return True
 
     def layout(self) -> None:
-        self.refresh_button.setFrame_(
-            NSMakeRect(20.0, BUTTON_ROW_Y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT)
-        )
-        self.install_hook_button.setFrame_(
-            NSMakeRect(20.0, BUTTON_ROW_Y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT)
-        )
-        self.quit_button.setFrame_(
-            NSMakeRect(130.67, BUTTON_ROW_Y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT)
-        )
+        show_install = bool(self.state is not None and self.state.show_install_button)
+        button_y = BUTTON_ROW_Y
+        if show_install:
+            self.install_hook_button.setFrame_(
+                NSMakeRect(CARD_X, button_y, CARD_WIDTH, BUTTON_ROW_HEIGHT)
+            )
+            button_y += INSTALL_BUTTON_EXTRA_HEIGHT
+        else:
+            self.install_hook_button.setFrame_(NSMakeRect(CARD_X, button_y, 0, 0))
+
+        self.refresh_button.setFrame_(NSMakeRect(20.0, button_y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT))
+        self.quit_button.setFrame_(NSMakeRect(130.67, button_y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT))
         self.switch_button.setFrame_(
-            NSMakeRect(241.34, BUTTON_ROW_Y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT)
+            NSMakeRect(241.34, button_y, BUTTON_WIDTH, BUTTON_ROW_HEIGHT)
         )
 
     def drawRect_(self, dirty_rect: Any) -> None:
@@ -411,7 +419,6 @@ class SketchContentView(NSView):
         self.state = state
         show_install = bool(state.show_install_button)
         self.install_hook_button.setHidden_(not show_install)
-        self.refresh_button.setHidden_(show_install)
         self.setNeedsLayout_(True)
         self.setNeedsDisplay_(True)
 

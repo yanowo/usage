@@ -148,3 +148,19 @@ def test_clamp_strip_position_keeps_strip_visible() -> None:
         82,
         work_area,
     ) == (1460, 958)
+
+
+def test_merge_work_areas_supports_multi_monitor_bounds() -> None:
+    work_area = usage_desktop.merge_work_areas(
+        [
+            usage_desktop.WorkArea(left=0, top=0, right=1920, bottom=1040),
+            usage_desktop.WorkArea(left=1920, top=-120, right=4480, bottom=1440),
+            usage_desktop.WorkArea(left=-1280, top=0, right=0, bottom=984),
+        ]
+    )
+
+    assert work_area == usage_desktop.WorkArea(left=-1280, top=-120, right=4480, bottom=1440)
+
+
+def test_merge_work_areas_returns_none_for_empty_input() -> None:
+    assert usage_desktop.merge_work_areas([]) is None
