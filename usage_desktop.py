@@ -453,7 +453,11 @@ def windows_virtual_work_area() -> WorkArea | None:
             )
         return True
 
-    callback_type = ctypes.WINFUNCTYPE(
+    callback_factory: Any = getattr(ctypes, "WINFUNCTYPE", None)
+    if callback_factory is None:
+        return windows_work_area()
+
+    callback_type = callback_factory(
         wintypes.BOOL,
         wintypes.HANDLE,
         wintypes.HANDLE,
