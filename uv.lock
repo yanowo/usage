@@ -543,7 +543,7 @@ wheels = [
 
 [[package]]
 name = "usage"
-version = "0.3.4"
+version = "0.3.6"
 source = { editable = "." }
 dependencies = [
     { name = "pillow", marker = "sys_platform == 'win32'" },

@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+## 0.3.6 — 2026-05-22
+
+### Fixed
+- Fixed the macOS CI `mypy .` failure caused by checking the Windows-only `ctypes.WINFUNCTYPE` attribute directly; Windows multi-monitor work-area callbacks now resolve `WINFUNCTYPE` dynamically, while non-Windows platforms keep the existing fallback path.
+
+### Tests
+- Verified `ruff check .`, `mypy .`, and `pytest -v`; the GitHub `CI` workflow also passed on the macOS / Windows matrix.
+
 ## 0.3.5 — 2026-05-22
 
 ### Added

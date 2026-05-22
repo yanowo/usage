@@ -6,6 +6,14 @@
 
 ## Unreleased
 
+## 0.3.6 — 2026-05-22
+
+### 修正
+- 修正 macOS CI 在 `mypy .` 檢查時誤掃到 Windows-only `ctypes.WINFUNCTYPE` 的問題；Windows 多螢幕 work area callback 會動態取得 `WINFUNCTYPE`，非 Windows 平台維持現有 fallback。
+
+### 測試
+- 確認 `ruff check .`、`mypy .`、`pytest -v` 皆通過；GitHub `CI` workflow 也已在 macOS / Windows matrix 通過。
+
 ## 0.3.5 — 2026-05-22
 
 ### 新增
