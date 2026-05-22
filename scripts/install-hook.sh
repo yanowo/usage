@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 一鍵把 usage 的 Claude Code statusLine hook 裝起來。
-# 給只有下載 usage.app、沒有原始碼的使用者用：
-#   bash <(curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh)
+# 一鍵把 Usage Monitor 的 Claude Code statusLine hook 裝起來。
+# 給只有下載 usage-monitor.app、沒有原始碼的使用者用：
+#   bash <(curl -fsSL https://raw.githubusercontent.com/yanowo/usage/main/scripts/install-hook.sh)
 #
 # 做的事：
 #   1. 下載 usage_statusline.py 到 ~/.claude/usage-statusline.py
@@ -9,7 +9,7 @@
 #   3. 如果原本有自訂 statusLine，備份到 settings.usage.previousStatusLine
 set -euo pipefail
 
-REPO_RAW="https://raw.githubusercontent.com/aqua5230/usage/main"
+REPO_RAW="https://raw.githubusercontent.com/yanowo/usage/main"
 CLAUDE_DIR="${HOME}/.claude"
 HOOK_PATH="${CLAUDE_DIR}/usage-statusline.py"
 SETTINGS_PATH="${CLAUDE_DIR}/settings.json"
@@ -54,4 +54,4 @@ PY
 echo
 echo "✓ 安裝完成"
 echo "→ 請完全結束 Claude Code（Cmd+Q）再重新打開一次，"
-echo "  然後在 usage 視窗按一下「立即更新」，數字就會跑出來。"
+echo "  然後在 Usage Monitor 視窗按一下「立即更新」，數字就會跑出來。"

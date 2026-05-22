@@ -64,9 +64,9 @@ if __name__ == "__main__":
             "rich.text",
         ],
         "plist": {
-            "CFBundleIdentifier": "com.lollapalooza.usage",
-            "CFBundleName": "usage",
-            "CFBundleDisplayName": "usage",
+            "CFBundleIdentifier": "com.yanowo.usagemonitor",
+            "CFBundleName": "Usage Monitor",
+            "CFBundleDisplayName": "Usage Monitor",
             "CFBundleShortVersionString": version,
             "CFBundleVersion": version,
             "LSUIElement": True,

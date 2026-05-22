@@ -4,22 +4,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_PYTHON="${PROJECT_DIR}/.venv/bin/python3"
-PLIST_NAME="com.lollapalooza.usage.plist"
+LABEL="com.yanowo.usagemonitor"
+PLIST_NAME="${LABEL}.plist"
 TARGET_PLIST="${HOME}/Library/LaunchAgents/${PLIST_NAME}"
-LEGACY_LABEL="com.lollapalooza.usag"
-LEGACY_PLIST="${HOME}/Library/LaunchAgents/${LEGACY_LABEL}.plist"
+LEGACY_LABELS=("com.lollapalooza.usage" "com.lollapalooza.usag")
 
 if [ ! -f "$VENV_PYTHON" ]; then
     echo "錯誤：找不到虛擬環境中的 Python ($VENV_PYTHON)"
     exit 1
 fi
 
-if launchctl print "gui/$(id -u)/${LEGACY_LABEL}" >/dev/null 2>&1; then
-    launchctl bootout "gui/$(id -u)/${LEGACY_LABEL}" 2>/dev/null || true
-fi
-rm -f "${LEGACY_PLIST}"
+for legacy_label in "${LEGACY_LABELS[@]}"; do
+    if launchctl print "gui/$(id -u)/${legacy_label}" >/dev/null 2>&1; then
+        launchctl bootout "gui/$(id -u)/${legacy_label}" 2>/dev/null || true
+    fi
+    rm -f "${HOME}/Library/LaunchAgents/${legacy_label}.plist"
+done
 
-mkdir -p "${HOME}/Library/Logs/usage"
+mkdir -p "${HOME}/Library/Logs/usage-monitor"
 
 echo "正在生成設定檔..."
 sed -e "s|__PROJECT_DIR__|${PROJECT_DIR}|g" \
@@ -31,5 +33,5 @@ echo "正在載入 LaunchAgent..."
 launchctl unload "${TARGET_PLIST}" 2>/dev/null || true
 launchctl load "${TARGET_PLIST}"
 
-echo "ℹ 已清掉舊 ${LEGACY_LABEL} LaunchAgent（如果有）"
-echo "✓ 已安裝，下次登入會自動啟動。手動測試：launchctl start com.lollapalooza.usage"
+echo "ℹ 已清掉舊 com.lollapalooza.* LaunchAgent（如果有）"
+echo "✓ 已安裝，下次登入會自動啟動。手動測試：launchctl start ${LABEL}"

@@ -2,9 +2,15 @@
 
 繁體中文 · [English](CHANGELOG.en.md)
 
-本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
+本檔記錄 Usage Monitor 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
 ## Unreleased
+
+### 變更
+- 對外專案名稱改為 **Usage Monitor**，README 標題與說明改為「A multi-platform usage monitor for Claude Code and Codex on macOS, Windows, and Web.」。
+- Python distribution / package 短名改為 `usage-monitor`；為了相容既有安裝，Claude hook、狀態檔與 Python 模組仍保留 `usage-*` / `usage_*` 命名。
+- macOS app 顯示名稱改為 Usage Monitor，bundle identifier 改為 `com.yanowo.usagemonitor`；release artifact 檔名暫時保留 `usage.app.zip` / `usage.exe` 以維持既有 workflow 相容。
+- macOS LaunchAgent label 改為 `com.yanowo.usagemonitor`，安裝腳本會清理舊 `com.lollapalooza.usage` / `com.lollapalooza.usag` 設定。
 
 ## 0.3.6 — 2026-05-22
 

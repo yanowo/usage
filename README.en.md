@@ -1,4 +1,6 @@
-# usage
+# Usage Monitor
+
+A multi-platform usage monitor for Claude Code and Codex on macOS, Windows, and Web.
 
 [繁體中文](README.md) · English
 
@@ -8,7 +10,9 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Web-lightgrey.svg)](README.en.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`usage` is a local usage monitor for **Claude Code** and **Codex**. It shows 5-hour usage, weekly usage, today's token count, and cost estimates.
+**Usage Monitor** is a local usage monitor for **Claude Code** and **Codex**. It shows 5-hour usage, weekly usage, today's token count, and cost estimates.
+
+The project / package short name is `usage-monitor`. For compatibility with existing installs, Claude hook files, status files, and Python modules keep their `usage-*` / `usage_*` names.
 
 The current fork supports three primary surfaces:
 
@@ -19,7 +23,7 @@ The current fork supports three primary surfaces:
 This project is based on the upstream [aqua5230/usage](https://github.com/aqua5230/usage). If you fork, modify, or redistribute it, keep the upstream project link and attribution.
 
 <p align="center">
-  <img src="docs/popover.png" alt="usage macOS popover" width="320">
+  <img src="docs/popover.png" alt="Usage Monitor macOS popover" width="320">
 </p>
 
 ## Highlights
@@ -36,7 +40,7 @@ This project is based on the upstream [aqua5230/usage](https://github.com/aqua52
 
 ### Claude Code
 
-Claude Code data comes from the official `statusLine` hook. `usage` installs `usage_statusline.py` to `~/.claude/usage-statusline.py` and updates `~/.claude/settings.json`:
+Claude Code data comes from the official `statusLine` hook. Usage Monitor installs `usage_statusline.py` to `~/.claude/usage-statusline.py` and updates `~/.claude/settings.json`:
 
 ```json
 {
@@ -48,7 +52,7 @@ Claude Code data comes from the official `statusLine` hook. `usage` installs `us
 }
 ```
 
-Whenever Claude Code refreshes its status line, it pipes the current session JSON to the hook. The hook only writes that JSON to `~/.claude/usage-status.json`. `usage` then reads:
+Whenever Claude Code refreshes its status line, it pipes the current session JSON to the hook. The hook only writes that JSON to `~/.claude/usage-status.json`. Usage Monitor then reads:
 
 - `rate_limits.five_hour.used_percentage`
 - `rate_limits.seven_day.used_percentage`
@@ -56,7 +60,7 @@ Whenever Claude Code refreshes its status line, it pipes the current session JSO
 - `context_window`
 - `cost`
 
-If multiple Claude status files exist, `usage` selects the newest snapshot that contains quota data:
+If multiple Claude status files exist, Usage Monitor selects the newest snapshot that contains quota data:
 
 1. `~/.claude/usage-status.json`
 2. `~/.claude/usag-status.json`, legacy fallback
@@ -66,13 +70,13 @@ If multiple Claude status files exist, `usage` selects the newest snapshot that 
 
 ### Codex
 
-Codex CLI does not expose a Claude-style statusLine hook, so `usage` scans:
+Codex CLI does not expose a Claude-style statusLine hook, so Usage Monitor scans:
 
 ```text
 ~/.codex/sessions/**/*.jsonl
 ```
 
-When Codex logs contain `rate_limits`, `usage` maps windows as follows:
+When Codex logs contain `rate_limits`, Usage Monitor maps windows as follows:
 
 - `window_minutes=300`: 5-hour quota
 - `window_minutes=10080`: weekly quota
@@ -103,8 +107,8 @@ Windows desktop mode requires Python with Tkinter. If Tkinter is unavailable, us
 ### 1. Clone
 
 ```bash
-git clone https://github.com/yanowo/usage.git
-cd usage
+git clone https://github.com/yanowo/usage.git usage-monitor
+cd usage-monitor
 ```
 
 For the original upstream project, use [aqua5230/usage](https://github.com/aqua5230/usage).
@@ -216,7 +220,7 @@ Desktop widget features:
 To launch without keeping a PowerShell window open, create a shortcut that uses `pythonw.exe`:
 
 ```powershell
-E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+E:\usage-monitor\.venv\Scripts\pythonw.exe E:\usage-monitor\main.py --desktop
 ```
 
 Replace the path with your actual checkout path.
@@ -294,7 +298,7 @@ python main.py --tui
 ```
 
 <p align="center">
-  <img src="docs/tui.png" alt="usage TUI" width="480">
+  <img src="docs/tui.png" alt="Usage Monitor TUI" width="480">
 </p>
 
 Press `Ctrl+C` to exit.
@@ -364,13 +368,13 @@ Uninstall:
 Create a shortcut in the Windows Startup folder:
 
 ```powershell
-E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --desktop
+E:\usage-monitor\.venv\Scripts\pythonw.exe E:\usage-monitor\main.py --desktop
 ```
 
 For Web mode:
 
 ```powershell
-E:\usage\.venv\Scripts\pythonw.exe E:\usage\main.py --web
+E:\usage-monitor\.venv\Scripts\pythonw.exe E:\usage-monitor\main.py --web
 ```
 
 ## Packaging

@@ -2,10 +2,16 @@
 
 [繁體中文](CHANGELOG.md) · English
 
-All notable changes to usage are documented here.
+All notable changes to Usage Monitor are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
+
+### Changed
+- Renamed the public project to **Usage Monitor** and updated the README title and subtitle to "A multi-platform usage monitor for Claude Code and Codex on macOS, Windows, and Web."
+- Changed the Python distribution / package short name to `usage-monitor`; Claude hook files, status files, and Python modules keep their `usage-*` / `usage_*` names for compatibility with existing installs.
+- The macOS app display name is now Usage Monitor, and the bundle identifier is now `com.yanowo.usagemonitor`; release artifact filenames temporarily remain `usage.app.zip` / `usage.exe` for existing workflow compatibility.
+- The macOS LaunchAgent label is now `com.yanowo.usagemonitor`; install scripts clean up old `com.lollapalooza.usage` / `com.lollapalooza.usag` settings.
 
 ## 0.3.6 — 2026-05-22
 

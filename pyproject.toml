@@ -1,7 +1,7 @@
 [project]
-name = "usage"
+name = "usage-monitor"
 version = "0.3.6"
-description = "usage — 顯示 Claude Code / Codex 用量的跨平台小工具（macOS menu bar、Web、TUI）"
+description = "Usage Monitor — Multi-platform Claude Code and Codex usage monitor"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"

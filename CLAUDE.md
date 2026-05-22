@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`usage` is a macOS menu bar (and TUI) app that pins Claude Code + Codex quota usage to the screen. Python 3.13, PyObjC for the menu bar UI, `rich` for the TUI. **No Anthropic/OpenAI APIs are ever called** — all numbers come from files on disk (a statusLine hook Claude Code writes, and Codex's `~/.codex/sessions/*.jsonl` logs).
+Usage Monitor is a macOS menu bar, Windows desktop, Web, and TUI app that pins Claude Code + Codex quota usage to the screen. Python 3.13, PyObjC for the macOS menu bar UI, Tkinter for the Windows desktop widget, and `rich` for the TUI. **No Anthropic/OpenAI APIs are ever called** — all numbers come from files on disk (a statusLine hook Claude Code writes, and Codex's `~/.codex/sessions/*.jsonl` logs).
 
 ## Commands
 
@@ -75,7 +75,9 @@ Claude Code ──stdin──> usage_statusline.py (hook) ──write──> ~/.
 
 ### Naming invariant
 
-Everything user-facing and on-disk uses the `usage` prefix: bundle id `com.lollapalooza.usage`, LaunchAgent label, hook filename, status filename, settings backup key. The `usag-*` form is **legacy v0.1.x only** — kept as a read-fallback for migration, never written. Don't reintroduce it.
+The public product name is **Usage Monitor** and the Python distribution / package short name is `usage-monitor`. User-facing app metadata uses `com.yanowo.usagemonitor`. Release artifacts currently keep the compatibility names `usage.app.zip` and `usage.exe`.
+
+Compatibility contracts still use the `usage` prefix: hook filename, status filename, settings backup key, debug env vars, and Python module names. The `usag-*` form is **legacy v0.1.x only** — kept as a read-fallback for migration, never written. Don't reintroduce it.
 
 ### Release / changelog
 
