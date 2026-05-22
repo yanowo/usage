@@ -168,7 +168,7 @@ def test_statusline_command_quotes_paths_with_spaces(
 
 
 def test_statusline_command_uses_windows_forward_slashes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hook = Path("C:\\Users\\Yan\\.claude\\usage-statusline.py")
 
@@ -208,13 +208,13 @@ def test_statusline_command_quotes_windows_paths_with_spaces(
 
 
 def test_statusline_command_prefers_windows_launcher(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    launcher = tmp_path / "py.exe"
     hook = Path("C:\\Users\\Yan\\.claude\\usage-statusline.py")
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook)
     monkeypatch.setattr(setup_hook, "_is_windows", lambda: True)
-    monkeypatch.setattr(shutil, "which", lambda name: str(launcher) if name == "py" else None)
+    # py、python、python3 都可用時，仍應優先選 py launcher
+    monkeypatch.setattr(shutil, "which", lambda name: f"C:\\Windows\\{name}.exe")
 
     assert setup_hook._statusline_command_parts() == [
         "py",

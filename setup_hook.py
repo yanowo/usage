@@ -53,14 +53,14 @@ def _statusline_command() -> str:
 def _statusline_command_parts() -> list[str]:
     # 用系統 Python，不綁 venv（hook 只用標準庫）
     if _is_windows():
+        hook = _shell_path(HOOK_TARGET)
         if shutil.which("py"):
-            return ["py", "-3", _shell_path(HOOK_TARGET)]
-        if shutil.which("python"):
-            return ["python", _shell_path(HOOK_TARGET)]
-        if shutil.which("python3"):
-            return ["python3", _shell_path(HOOK_TARGET)]
+            return ["py", "-3", hook]
+        for name in ("python", "python3"):
+            if shutil.which(name):
+                return [name, hook]
         python = sys.executable or "python"
-        return [_shell_path(Path(python)), _shell_path(HOOK_TARGET)]
+        return [_shell_path(Path(python)), hook]
 
     python = shutil.which("python3") or "python3"
     return [python, str(HOOK_TARGET)]
