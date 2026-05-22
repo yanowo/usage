@@ -41,11 +41,13 @@ flowchart LR
     style F stroke:#c0392b,stroke-dasharray:5 5
 ```
 
-Read priority:
+Claude status files usage can read:
 
 1. `~/.claude/usage-status.json` — written by the hook usage installs.
 2. `~/.claude/usag-status.json` — automatic v0.1.x legacy fallback; new users should not encounter this.
 3. `~/.claude/tt-status.json` — fallback. If you also use [token-tracker](https://github.com/stormzhang/token-tracker), usage will share its status file.
+
+If multiple status files exist, usage chooses the newest snapshot that contains quota data. It only falls back to source priority when timestamps match, so an older `usage-status.json` will not hide newer usable data from another local source.
 
 ### Codex usage
 
@@ -144,7 +146,7 @@ python main.py --setup
 What `--setup` does in detail:
 
 - Copies `usage_statusline.py` to `~/.claude/usage-statusline.py`.
-- Points `statusLine` in `~/.claude/settings.json` at that hook.
+- Points `statusLine` in `~/.claude/settings.json` at that hook and sets `refreshInterval: 1`, so Claude Code keeps refreshing the status file while idle.
 - If you already had a custom `statusLine`, it is backed up to `settings.usage.previousStatusLine` so nothing is overwritten.
 
 To uninstall:

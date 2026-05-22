@@ -50,6 +50,7 @@ def test_setup_creates_new_settings_with_usage_statusline(
     assert exit_code == 0
     assert data["statusLine"]["type"] == "command"
     assert str(hook_target) in data["statusLine"]["command"]
+    assert data["statusLine"]["refreshInterval"] == 1
     assert hook_target.exists()
 
 
@@ -65,6 +66,7 @@ def test_setup_backs_up_existing_statusline_and_is_idempotent(
 
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert shlex.split(data["statusLine"]["command"]) == ["/usr/bin/python3", str(hook_target)]
+    assert data["statusLine"]["refreshInterval"] == 1
     assert data["usage"]["previousStatusLine"] == original
 
 

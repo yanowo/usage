@@ -44,7 +44,7 @@ if isinstance(existing, dict) and "usage-statusline" not in str(existing.get("co
     print(f"ℹ 已備份原 statusLine 到 settings.usage.previousStatusLine")
 
 command = f"{shlex.quote(python_bin)} {shlex.quote(hook_path)}"
-data["statusLine"] = {"type": "command", "command": command}
+data["statusLine"] = {"type": "command", "command": command, "refreshInterval": 1}
 
 with open(settings_path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)

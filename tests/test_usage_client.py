@@ -44,7 +44,7 @@ def test_read_status_file_skips_bad_json_and_prefers_usage_file(
     assert data["rate_limits"]["five_hour"]["used_percentage"] == 12
 
 
-def test_read_status_file_uses_legacy_file_before_token_tracker(
+def test_read_status_file_uses_newest_status_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     legacy_path = tmp_path / f"{LEGACY_NAME}-status.json"
@@ -54,11 +54,21 @@ def test_read_status_file_uses_legacy_file_before_token_tracker(
     monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tt_path))
 
     legacy_path.write_text(
-        json.dumps({"rate_limits": {"five_hour": {"used_percentage": 18}}}),
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_000,
+                "rate_limits": {"five_hour": {"used_percentage": 18}},
+            }
+        ),
         encoding="utf-8",
     )
     tt_path.write_text(
-        json.dumps({"rate_limits": {"five_hour": {"used_percentage": 7}}}),
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_060,
+                "rate_limits": {"five_hour": {"used_percentage": 7}},
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -66,8 +76,8 @@ def test_read_status_file_uses_legacy_file_before_token_tracker(
 
     assert result is not None
     data, path = result
-    assert path == str(legacy_path)
-    assert data["rate_limits"]["five_hour"]["used_percentage"] == 18
+    assert path == str(tt_path)
+    assert data["rate_limits"]["five_hour"]["used_percentage"] == 7
 
 
 def test_read_status_file_returns_none_for_bad_usage_json(
@@ -168,6 +178,77 @@ def test_build_snapshot_keeps_both_percentages_when_present(
     assert snapshot is not None
     assert snapshot.current_percent == 12
     assert snapshot.weekly_percent == 34
+
+
+def test_read_status_snapshot_uses_newest_quota_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    usage_path = tmp_path / "usage-status.json"
+    tt_path = tmp_path / "tt-status.json"
+    monkeypatch.setattr(usage_client, "STATUS_FILE", str(usage_path))
+    monkeypatch.setattr(usage_client, "LEGACY_STATUS_FILE", str(tmp_path / f"{LEGACY_NAME}.json"))
+    monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tt_path))
+
+    usage_path.write_text(
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_000,
+                "rate_limits": {
+                    "five_hour": {"used_percentage": 0},
+                    "seven_day": {"used_percentage": 0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    tt_path.write_text(
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_060,
+                "rate_limits": {
+                    "five_hour": {"used_percentage": 7},
+                    "seven_day": {"used_percentage": 8},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = usage_client._read_status_snapshot()
+
+    assert result is not None
+    snapshot, path = result
+    assert path == str(tt_path)
+    assert snapshot.current_percent == 7
+    assert snapshot.weekly_percent == 8
+
+
+def test_read_status_snapshot_skips_newer_files_without_quota_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    usage_path = tmp_path / "usage-status.json"
+    tt_path = tmp_path / "tt-status.json"
+    monkeypatch.setattr(usage_client, "STATUS_FILE", str(usage_path))
+    monkeypatch.setattr(usage_client, "LEGACY_STATUS_FILE", str(tmp_path / f"{LEGACY_NAME}.json"))
+    monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tt_path))
+
+    usage_path.write_text(
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_000,
+                "rate_limits": {"five_hour": {"used_percentage": 18}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    tt_path.write_text(json.dumps({"_received_at_ts": 1_700_000_060}), encoding="utf-8")
+
+    result = usage_client._read_status_snapshot()
+
+    assert result is not None
+    snapshot, path = result
+    assert path == str(usage_path)
+    assert snapshot.current_percent == 18
 
 
 def test_fetch_once_mock_returns_success_with_expected_snapshot() -> None:

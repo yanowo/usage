@@ -4,6 +4,12 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## Unreleased
+
+### 修正
+- Claude 狀態檔讀取改選「最新且有 quota 資料」的快照，避免舊 `usage-status.json` 擋住較新的 legacy / token-tracker 用量。
+- `setup_hook.py` 與 `scripts/install-hook.sh` 寫入 Claude Code 官方支援的 `statusLine.refreshInterval: 1`，讓原生 Claude Code 閒置時也會持續刷新本地狀態檔。
+
 ## 0.3.3 — 2026-05-19
 
 ### 新增

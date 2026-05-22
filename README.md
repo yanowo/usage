@@ -41,11 +41,13 @@ flowchart LR
     style F stroke:#c0392b,stroke-dasharray:5 5
 ```
 
-讀檔的優先順序：
+會讀的 Claude 狀態檔來源：
 
 1. `~/.claude/usage-status.json` —— usage 自己 hook 寫的
 2. `~/.claude/usag-status.json` —— v0.1.x legacy 自動 fallback，新使用者不會碰到
 3. `~/.claude/tt-status.json` —— 備援；如果你也裝過 [token-tracker](https://github.com/stormzhang/token-tracker)，usage 會直接共用它的狀態檔
+
+如果同時存在多份狀態檔，usage 會選「最新且有 quota 資料」的快照；時間相同時才優先使用 usage 自己的檔案，避免舊快照蓋掉較新的用量。
 
 ### Codex 用量
 
@@ -146,7 +148,7 @@ python main.py --setup
 setup 具體做了什麼：
 
 - 把 `usage_statusline.py` 複製到 `~/.claude/usage-statusline.py`
-- 在 `~/.claude/settings.json` 把 `statusLine` 指向這個 hook
+- 在 `~/.claude/settings.json` 把 `statusLine` 指向這個 hook，並設定 `refreshInterval: 1` 讓 Claude Code 閒置時也會持續刷新狀態檔
 - 如果你本來就有自訂的 statusLine，會自動備份到 `settings.usage.previousStatusLine`，不會被蓋掉
 
 要卸載：

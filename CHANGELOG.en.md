@@ -5,6 +5,12 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+### Fixed
+- Claude status file loading now chooses the newest snapshot that contains quota data, so an old `usage-status.json` no longer hides newer usable legacy / token-tracker usage.
+- `setup_hook.py` and `scripts/install-hook.sh` now write Claude Code's official `statusLine.refreshInterval: 1`, keeping the local status file refreshed while native Claude Code is idle.
+
 ## 0.3.3 — 2026-05-19
 
 ### Added

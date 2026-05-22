@@ -31,6 +31,7 @@ LEGACY_STATUS_FILE = Path(os.path.expanduser(f"~/.claude/{LEGACY_NAME}-status.js
 BACKUP_KEY = "usage"
 LEGACY_BACKUP_KEY = LEGACY_NAME
 PREV_SL_KEY = "previousStatusLine"
+STATUSLINE_REFRESH_INTERVAL_SECONDS = 1
 
 
 def _resolve_hook_source() -> Path:
@@ -201,7 +202,11 @@ def setup() -> int:
         backup[PREV_SL_KEY] = existing
         print(f"ℹ 已備份原有 statusLine 到 settings.{BACKUP_KEY}.{PREV_SL_KEY}")
 
-    settings["statusLine"] = {"type": "command", "command": _statusline_command()}
+    settings["statusLine"] = {
+        "type": "command",
+        "command": _statusline_command(),
+        "refreshInterval": STATUSLINE_REFRESH_INTERVAL_SECONDS,
+    }
     _save_settings(settings)
 
     print(f"✓ hook 已安裝：{HOOK_TARGET}")
