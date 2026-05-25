@@ -49,8 +49,26 @@ jobs:
       - name: Verify .app bundle contents
         run: |
           set -e
-          if [[ -d dist/main.app && ! -d dist/usage.app ]]; then
-            mv dist/main.app dist/usage.app
+
+          normalize_bundle() {
+            if [[ -d dist/usage.app ]]; then
+              return
+            fi
+
+            for candidate in "dist/Usage Monitor.app" "dist/main.app"; do
+              if [[ -d "$candidate" ]]; then
+                mv "$candidate" dist/usage.app
+                return
+              fi
+            done
+          }
+
+          normalize_bundle
+
+          if [[ ! -d dist/usage.app ]]; then
+            echo "Missing app bundle: dist/usage.app"
+            ls -l dist || true
+            exit 1
           fi
 
           dump_resources() {
@@ -65,12 +83,6 @@ jobs:
               exit 1
             fi
           }
-
-          if [[ ! -d dist/usage.app ]]; then
-            echo "Missing app bundle: dist/usage.app"
-            ls -l dist || true
-            exit 1
-          fi
 
           verify_file dist/usage.app/Contents/Resources/usage_statusline.py
           verify_file dist/usage.app/Contents/Resources/claude.webp
