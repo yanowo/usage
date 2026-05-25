@@ -336,6 +336,33 @@ python main.py --web --mock
 | `--mock` | Use fake data for previews |
 | `--force-group {0,1,2,3}` | TUI test option; forces the rate group |
 
+## `.env` Configuration
+
+`main.py` loads `.env` from the current working directory first, then from the project directory. Command-line flags still override `.env`.
+
+Supported variables:
+
+| Variable | Description |
+|----------|-------------|
+| `USAGE_MODE` | Default mode: `web`, `desktop`, or `tui` |
+| `USAGE_WEB_HOST` | Web bind address; the source default is `DEFAULT_WEB_HOST` in `usage_web.py` |
+| `USAGE_WEB_PORT` | Web port; the source default is `DEFAULT_WEB_PORT` in `usage_web.py` |
+| `USAGE_INTERVAL` | Data refresh interval, minimum 30 seconds |
+| `USAGE_MOCK` | Set `1` to enable mock mode, `0` to disable |
+| `USAGE_DEBUG` | Set `1` to show debug logs |
+| `USAGE_CODEX_COMMAND` | Path to a specific Codex executable |
+| `USAGE_FORCE_GROUP` | TUI test rate group, `0` through `3` |
+
+See `.env.example`:
+
+```env
+USAGE_MODE=web
+USAGE_WEB_HOST=0.0.0.0
+USAGE_WEB_PORT=8765
+USAGE_INTERVAL=60
+USAGE_MOCK=0
+```
+
 Platform defaults:
 
 - Windows: `python main.py` starts desktop mode.

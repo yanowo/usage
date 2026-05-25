@@ -336,6 +336,33 @@ python main.py --web --mock
 | `--mock` | 使用假資料預覽 |
 | `--force-group {0,1,2,3}` | TUI 測試用，強制速率分組 |
 
+## `.env` 設定
+
+`main.py` 會先讀目前工作目錄的 `.env`，再讀專案目錄的 `.env`。命令列參數仍會覆蓋 `.env`。
+
+可設定：
+
+| 變數 | 說明 |
+|------|------|
+| `USAGE_MODE` | 預設模式：`web`、`desktop` 或 `tui` |
+| `USAGE_WEB_HOST` | Web 綁定位址；原始預設在 `usage_web.py` 的 `DEFAULT_WEB_HOST` |
+| `USAGE_WEB_PORT` | Web port；原始預設在 `usage_web.py` 的 `DEFAULT_WEB_PORT` |
+| `USAGE_INTERVAL` | 重新讀取資料間隔，最小 30 秒 |
+| `USAGE_MOCK` | `1` 啟用 mock 模式，`0` 關閉 |
+| `USAGE_DEBUG` | `1` 顯示更多除錯訊息 |
+| `USAGE_CODEX_COMMAND` | 指定 Codex 執行檔路徑 |
+| `USAGE_FORCE_GROUP` | TUI 測試用速率組，`0` 到 `3` |
+
+範例可看 `.env.example`：
+
+```env
+USAGE_MODE=web
+USAGE_WEB_HOST=0.0.0.0
+USAGE_WEB_PORT=8765
+USAGE_INTERVAL=60
+USAGE_MOCK=0
+```
+
 平台預設：
 
 - Windows：`python main.py` 等同 desktop。

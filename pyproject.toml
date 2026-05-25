@@ -29,6 +29,7 @@ py-modules = [
     "setup_hook",
     "usage_client",
     "usage_desktop",
+    "usage_env",
     "usage_state",
     "usage_web",
     "codex_loader",

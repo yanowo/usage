@@ -11,10 +11,13 @@ from typing import Any
 
 from tui import AppViewState, render_screen
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
+from usage_env import env_bool, env_choice, env_int, env_int_first, env_str, load_dotenv
 from usage_rate import UsageRateTracker
 from usage_web import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT
 
 SPRITE_INTERVAL_S = [2.0, 0.8, 0.4, 0.15]  # idle/normal/active/heavy
+DEFAULT_INTERVAL = 60
+MODE_CHOICES = {"web", "desktop", "tui"}
 
 
 def _load_rich() -> tuple[type[Any], type[Any]]:
@@ -41,13 +44,34 @@ def _setup_logging() -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    default_mode = env_choice("USAGE_MODE", MODE_CHOICES, "")
+    default_host = env_str("USAGE_WEB_HOST", DEFAULT_WEB_HOST)
+    default_port = env_int(
+        "USAGE_WEB_PORT",
+        DEFAULT_WEB_PORT,
+        min_value=1,
+        max_value=65535,
+    )
+    default_interval = env_int("USAGE_INTERVAL", DEFAULT_INTERVAL, min_value=30)
+    default_force_group = env_int_first(
+        ("USAGE_FORCE_GROUP", "USAG_FORCE_GROUP"),
+        None,
+        min_value=0,
+        max_value=3,
+    )
+
     parser = argparse.ArgumentParser(description="顯示 Claude Code 用量的工具")
-    parser.add_argument("--mock", action="store_true", help="使用假資料預覽介面")
+    parser.add_argument(
+        "--mock",
+        action=argparse.BooleanOptionalAction,
+        default=env_bool("USAGE_MOCK", False),
+        help="使用假資料預覽介面，可用 USAGE_MOCK=1 設定",
+    )
     parser.add_argument(
         "--interval",
         type=int,
-        default=60,
-        help="輪詢秒數，預設 60，最小 30",
+        default=default_interval,
+        help=f"輪詢秒數，預設 {default_interval}，最小 30，可用 USAGE_INTERVAL 設定",
     )
     parser.add_argument(
         "--tui",
@@ -66,21 +90,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--host",
-        default=DEFAULT_WEB_HOST,
-        help=f"Web 介面綁定位址，預設 {DEFAULT_WEB_HOST}",
+        default=default_host,
+        help=f"Web 介面綁定位址，預設 {default_host}，可用 USAGE_WEB_HOST 設定",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=DEFAULT_WEB_PORT,
-        help=f"Web 介面連接埠，預設 {DEFAULT_WEB_PORT}",
+        default=default_port,
+        help=f"Web 介面連接埠，預設 {default_port}，可用 USAGE_WEB_PORT 設定",
     )
     parser.add_argument(
         "--force-group",
         type=int,
         choices=[0, 1, 2, 3],
-        default=None,
-        help="強制使用某速率組（測試用，僅 TUI 模式有效），0=Idle 1=Normal 2=Active 3=Heavy",
+        default=default_force_group,
+        help=(
+            "強制使用某速率組（測試用，僅 TUI 模式有效），"
+            "0=Idle 1=Normal 2=Active 3=Heavy，可用 USAGE_FORCE_GROUP 設定"
+        ),
     )
     parser.add_argument(
         "--setup",
@@ -93,6 +120,10 @@ def parse_args() -> argparse.Namespace:
         help="從 Claude Code 移除 statusLine hook 並還原原設定",
     )
     args = parser.parse_args()
+    if not (args.tui or args.web or args.desktop):
+        args.tui = default_mode == "tui"
+        args.web = default_mode == "web"
+        args.desktop = default_mode == "desktop"
     args.interval = max(30, args.interval)
     if args.port <= 0 or args.port > 65535:
         parser.error("--port must be between 1 and 65535")
@@ -167,6 +198,7 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
 
 
 def main() -> None:
+    load_dotenv()
     _setup_logging()
     args = parse_args()
     if args.setup:

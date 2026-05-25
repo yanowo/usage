@@ -6,8 +6,25 @@ import main
 from tui import AppViewState
 from usage_client import PollOutcome, PollState, UsageSnapshot
 
+CLI_ENV_VARS = [
+    "USAGE_MODE",
+    "USAGE_WEB_HOST",
+    "USAGE_WEB_PORT",
+    "USAGE_INTERVAL",
+    "USAGE_MOCK",
+    "USAGE_FORCE_GROUP",
+    "USAG_FORCE_GROUP",
+]
 
-def _parse_args(monkeypatch: Any, *args: str) -> Any:
+
+def _clear_cli_env(monkeypatch: Any) -> None:
+    for name in CLI_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
+def _parse_args(monkeypatch: Any, *args: str, clear_env: bool = True) -> Any:
+    if clear_env:
+        _clear_cli_env(monkeypatch)
     monkeypatch.setattr("sys.argv", ["usage", *args])
     return main.parse_args()
 
@@ -70,6 +87,55 @@ def test_parse_args_web_host_and_port(monkeypatch: Any) -> None:
     assert args.web is True
     assert args.host == "0.0.0.0"
     assert args.port == 9000
+
+
+def test_parse_args_reads_env_defaults(monkeypatch: Any) -> None:
+    _clear_cli_env(monkeypatch)
+    monkeypatch.setenv("USAGE_MODE", "web")
+    monkeypatch.setenv("USAGE_WEB_HOST", "0.0.0.0")
+    monkeypatch.setenv("USAGE_WEB_PORT", "9001")
+    monkeypatch.setenv("USAGE_INTERVAL", "90")
+    monkeypatch.setenv("USAGE_MOCK", "1")
+    monkeypatch.setenv("USAGE_FORCE_GROUP", "3")
+
+    args = _parse_args(monkeypatch, clear_env=False)
+
+    assert args.web is True
+    assert args.desktop is False
+    assert args.host == "0.0.0.0"
+    assert args.port == 9001
+    assert args.interval == 90
+    assert args.mock is True
+    assert args.force_group == 3
+
+
+def test_parse_args_cli_values_override_env_defaults(monkeypatch: Any) -> None:
+    _clear_cli_env(monkeypatch)
+    monkeypatch.setenv("USAGE_MODE", "web")
+    monkeypatch.setenv("USAGE_WEB_HOST", "127.0.0.2")
+    monkeypatch.setenv("USAGE_WEB_PORT", "9001")
+    monkeypatch.setenv("USAGE_INTERVAL", "90")
+    monkeypatch.setenv("USAGE_MOCK", "1")
+
+    args = _parse_args(
+        monkeypatch,
+        "--desktop",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "7777",
+        "--interval",
+        "120",
+        "--no-mock",
+        clear_env=False,
+    )
+
+    assert args.web is False
+    assert args.desktop is True
+    assert args.host == "0.0.0.0"
+    assert args.port == 7777
+    assert args.interval == 120
+    assert args.mock is False
 
 
 def test_parse_args_desktop(monkeypatch: Any) -> None:
