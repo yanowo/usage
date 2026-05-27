@@ -355,6 +355,32 @@ def test_codex_command_uses_macos_vscode_extension_path(
     assert codex_loader._codex_command() == [str(mac_candidate)]
 
 
+def test_hidden_subprocess_kwargs_are_empty_off_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("codex_loader.sys.platform", "linux")
+
+    assert codex_loader._hidden_subprocess_kwargs() == {}
+
+
+def test_hidden_subprocess_kwargs_hide_windows_console(monkeypatch: pytest.MonkeyPatch) -> None:
+    class StartupInfo:
+        def __init__(self) -> None:
+            self.dwFlags = 0
+            self.wShowWindow = None
+
+    monkeypatch.setattr("codex_loader.sys.platform", "win32")
+    monkeypatch.setattr("codex_loader.subprocess.CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr("codex_loader.subprocess.STARTUPINFO", StartupInfo, raising=False)
+    monkeypatch.setattr("codex_loader.subprocess.STARTF_USESHOWWINDOW", 1, raising=False)
+    monkeypatch.setattr("codex_loader.subprocess.SW_HIDE", 0, raising=False)
+
+    kwargs = codex_loader._hidden_subprocess_kwargs()
+
+    assert kwargs["creationflags"] == 0x08000000
+    startupinfo = kwargs["startupinfo"]
+    assert startupinfo.dwFlags & 1
+    assert startupinfo.wShowWindow == 0
+
+
 def test_rate_limits_from_app_server_response_supports_camel_case_windows() -> None:
     response = {
         "id": 2,

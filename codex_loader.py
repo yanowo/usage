@@ -196,6 +196,7 @@ def _load_app_server_rate_limits() -> CodexRateLimits | None:
             stderr=subprocess.DEVNULL,
             text=True,
             encoding="utf-8",
+            **_hidden_subprocess_kwargs(),
         )
     except OSError:
         return None
@@ -241,6 +242,25 @@ def _codex_command() -> list[str] | None:
         if candidate.is_file():
             return [str(candidate)]
     return None
+
+
+def _hidden_subprocess_kwargs() -> dict[str, Any]:
+    if sys.platform != "win32":
+        return {}
+
+    kwargs: dict[str, Any] = {}
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if creationflags:
+        kwargs["creationflags"] = creationflags
+
+    startupinfo_type = getattr(subprocess, "STARTUPINFO", None)
+    if startupinfo_type is not None:
+        startupinfo = startupinfo_type()
+        startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
+        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+        kwargs["startupinfo"] = startupinfo
+
+    return kwargs
 
 
 def _split_configured_command(command: str) -> list[str]:
